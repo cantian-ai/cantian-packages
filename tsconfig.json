@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/rest"
+    },
+    {
+      "path": "packages/mongodb"
+    },
+    {
+      "path": "packages/concurrency"
+    }
+  ]
+}

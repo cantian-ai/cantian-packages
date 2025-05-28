@@ -1,0 +1,21 @@
+{
+  "name": "cantian-mongodb",
+  "version": "0.0.1",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./migration": "./dist/migration.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepublishOnly": "rm -rf dist && tsc"
+  },
+  "devDependencies": {
+    "json-schema-to-ts": "^3.1.1"
+  },
+  "dependencies": {
+    "mongodb": "^6.16.0"
+  }
+}
