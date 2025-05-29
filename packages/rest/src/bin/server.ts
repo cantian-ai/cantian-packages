@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import fs from 'node:fs';
 import { app } from '../app.js';
 import { createAuthHandler, createControllerRouter } from '../handlers.js';

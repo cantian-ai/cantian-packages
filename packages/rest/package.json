@@ -12,7 +12,7 @@
     "cantian-rest-server": "./dist/bin/server.js"
   },
   "scripts": {
-    "prepublishOnly": "rm -rf dist && tsc"
+    "prepublishOnly": "rm -rf dist && tsc && chmod +x dist/bin/*.js"
   },
   "devDependencies": {
     "@types/express": "^5.0.1",
