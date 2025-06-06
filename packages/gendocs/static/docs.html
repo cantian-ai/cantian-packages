@@ -41,9 +41,10 @@
           },
         ],
       };
-      const preSendRequest = async () => {
-        const idToken = await window.parent.getIdToken();
-        window.setOperationAuthValue({ authValue: idToken, scheme: window.operationAuthValue[0].scheme });
+      const preSendRequest = async ([, init]) => {
+        const accessToken = await window.parent.getAccessToken();
+        window.setOperationAuthValue({ authValue: accessToken, scheme: window.operationAuthValue[0].scheme });
+        init.headers = { ...init.headers, Authorization: `Bearer ${accessToken}` };
       };
       window.preSendRequest = preSendRequest;
       (async () => {
