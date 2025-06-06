@@ -41,7 +41,10 @@ export const createAuthHandler = (options: { jwts: string; scope?: string }) => 
     };
     return next();
   } catch (error) {
-    throw RestError.unauthorized();
+    if (!(error instanceof RestError)) {
+      throw RestError.unauthorized();
+    }
+    throw error;
   }
 };
 

@@ -1,6 +1,6 @@
 {
   "name": "cantian-gendocs",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"
@@ -17,6 +17,6 @@
     "prepublishOnly": "rm -rf dist && tsc"
   },
   "dependencies": {
-    "cantian-rest": "^0.0.7"
+    "cantian-rest": "*"
   }
 }
