@@ -5,6 +5,8 @@ import { Auth } from './type.js';
 
 export class BaseController {
   static successStatusCode = 200;
+  static summary: string;
+  static description: string;
 
   static dataAjv = new Ajv.default({ removeAdditional: true, useDefaults: true });
   static validateData: ValidateFunction | undefined;
@@ -14,7 +16,8 @@ export class BaseController {
 
   static inited: boolean;
 
-  static isPublic: boolean;
+  static isPublic?: boolean;
+  static scope?: string;
 
   declare ['constructor']: typeof BaseController;
 

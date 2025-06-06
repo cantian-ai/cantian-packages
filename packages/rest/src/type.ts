@@ -4,6 +4,7 @@ export type Auth = {
   sub: string;
   name: string;
   aud: string;
+  scopes?: string[];
 };
 
 declare module 'express-serve-static-core' {

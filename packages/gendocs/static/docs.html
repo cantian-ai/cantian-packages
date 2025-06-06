@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Elements in HTML</title>
+
+    <script src="https://openapidocs.blob.core.windows.net/public/web-components.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@stoplight/elements/styles.min.css" />
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/fast-xml-parser/5.2.3/fxparser.min.js"
+      integrity="sha512-qseMJNM3JypeSEmzVKH3EtgWqWKU2CbKEk5rTXsC143wjoMxvMjPwl8zYnNu7I6jQFZPdbl+KK8pQPGPcBwlhw=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script>
+      const openapiSpec = {
+        openapi: '3.0.4',
+        info: {
+          title: 'Cantian Open API',
+          description: 'Cantian Open API for developers.',
+        },
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: 'http',
+              scheme: 'bearer',
+              bearerFormat: 'JWT',
+            },
+          },
+        },
+        servers: [
+          {
+            url: '/rest',
+          },
+        ],
+        paths: {},
+        security: [
+          {
+            bearerAuth: [],
+          },
+        ],
+      };
+      const preSendRequest = async () => {
+        const idToken = await window.parent.getIdToken();
+        window.setOperationAuthValue({ authValue: idToken, scheme: window.operationAuthValue[0].scheme });
+      };
+      window.preSendRequest = preSendRequest;
+      (async () => {
+        const response = await fetch('/openapi.json');
+        const text = await response.text();
+        const spec = JSON.parse(text);
+        const el = document.createElement('elements-api');
+        openapiSpec.paths = { ...openapiSpec.paths, ...spec };
+        el.apiDescriptionDocument = JSON.stringify(openapiSpec);
+        el.router = 'hash';
+        el.id = 'elements';
+        el.preSendRequest = preSendRequest;
+        document.body.appendChild(el);
+      })();
+    </script>
+  </head>
+  <body style="height: 100vh" id="" body></body>
+</html>

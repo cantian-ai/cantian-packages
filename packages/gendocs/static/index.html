@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Elements in HTML</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <script type="module">
+      import LogtoClient from 'https://cdn.jsdelivr.net/npm/@logto/browser@2.2.13/+esm';
+
+      const urlWithoutQuery = window.location.origin + window.location.pathname;
+
+      const logto = new LogtoClient({
+        endpoint: 'https://iam-dev.cantian.ai/',
+        appId: 'wh1f93o66988rv2o2k4wz',
+      });
+
+      window.signOut = function signOut() {
+        logto.signOut(urlWithoutQuery);
+      };
+
+      async function checkLogin() {
+        const isAuthenticated = await logto.isAuthenticated();
+        if (isAuthenticated) {
+          const userInfo = await logto.getIdTokenClaims();
+          document.getElementById('sub').innerText = `${userInfo.name || userInfo.email} - ${userInfo.sub}`;
+          const el = document.createElement('iframe');
+          el.src = 'docs.html';
+          el.frameborder = '0';
+          el.className = 'w-full h-full border-0';
+          document.getElementById('api-doc').appendChild(el);
+          document.body.classList.remove('hidden');
+        } else {
+          logto.signIn(urlWithoutQuery);
+        }
+      }
+
+      window.onload = async () => {
+        if (window.location.search.includes('code=')) {
+          await logto.handleSignInCallback(window.location.href);
+          window.location.href = urlWithoutQuery;
+        } else {
+          checkLogin();
+        }
+      };
+
+      window.getIdToken = async () => {
+        return await logto.getIdToken();
+      };
+    </script>
+  </head>
+  <body class="flex flex-col h-screen hidden">
+    <div class="text-white p-4 flex-shrink-0 flex items-center" style="background-color: hsla(218, 32%, 7%, 1)">
+      <div class="ml-auto mr-4" id="sub"></div>
+      <div>
+        <button class="text-gray-200 hover:text-white px-4 py-2 font-medium rounded cursor-pointer" onclick="signOut()">
+          Sign out
+        </button>
+      </div>
+    </div>
+    <div id="api-doc" class="flex-1 h-0"></div>
+  </body>
+</html>

@@ -1,10 +1,13 @@
-import express, { json, Request, RequestHandler, Response } from 'express';
+import cors from 'cors';
+import express, { json, Request, Response } from 'express';
 import { createLocalJWKSet, createRemoteJWKSet, jwtVerify } from 'jose';
+import { existsSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
 import { BaseController } from './BaseController.js';
 import { RestError } from './RestError.js';
+import { app } from './app.js';
 
-export const createAuthHandler = (options: { jwts: string; scope?: string }) => async (req, res, next) => {
+export const createAuthHandler = (options: { jwts: string; scope?: string }) => async (req: Request, res, next) => {
   const authorization = req.headers['authorization'];
   if (!authorization) {
     throw RestError.unauthorized('Authorization header is required.');
@@ -22,9 +25,10 @@ export const createAuthHandler = (options: { jwts: string; scope?: string }) => 
     }
     const { payload } = await jwtVerify(token, jwts);
 
+    let scopes: string[] | undefined;
     if (options.scope) {
-      const tokenScopes = (payload.scope as string | undefined)?.split(' ');
-      if (!tokenScopes?.includes(options.scope)) {
+      scopes = (payload.scope as string | undefined)?.split(' ');
+      if (!scopes?.includes(options.scope)) {
         throw RestError.forbidden();
       }
     }
@@ -33,6 +37,7 @@ export const createAuthHandler = (options: { jwts: string; scope?: string }) => 
       sub: payload.sub as string,
       name: payload.name as string,
       aud: payload.aud as string,
+      scopes,
     };
     return next();
   } catch (error) {
@@ -51,8 +56,8 @@ export const createBizHandler = (c: typeof BaseController) => async (req: Reques
   next();
 };
 
-export const createControllerRouter = async (options: { controllerDir: string; auth?: RequestHandler }) => {
-  const { controllerDir, auth } = options;
+export const createControllerRouter = async (options: { controllerDir: string; jwts?: string; defaultScope?: string }) => {
+  const { controllerDir, jwts, defaultScope } = options;
   const allowedMethods = ['get', 'post', 'patch'] as const;
   const controllerFiles = glob('**/*.js', { cwd: controllerDir });
   const router = express.Router();
@@ -78,10 +83,10 @@ export const createControllerRouter = async (options: { controllerDir: string; a
     const urlPath = '/' + parts.join('/');
     const { default: c }: { default: typeof BaseController } = await import(`${controllerDir}/${controllerFile}`);
     if (!c.isPublic) {
-      if (!auth) {
-        throw new Error(`Auth option is required since the controller ${urlPath}/${method} is private.`);
+      if (!jwts) {
+        throw new Error(`A JWTS configuration is required since the controller ${urlPath}/${method} is private.`);
       }
-      router[method](urlPath, auth);
+      router[method](urlPath, createAuthHandler({ jwts, scope: c.scope || defaultScope }));
     }
     router[method](urlPath, createBizHandler(c));
     console.log(`Route: ${method.toUpperCase()} ${urlPath}`);
@@ -117,4 +122,21 @@ export const catchError = (err, req, res: Response, next) => {
     });
   }
   next();
+};
+
+export const registerControllers = async (options: { jwts?: string; scope?: string }) => {
+  const { jwts, scope } = options;
+
+  app.use(cors());
+
+  if (existsSync('dist/controllers')) {
+    const controllerDir = process.cwd() + '/dist/controllers/';
+    const router = await createControllerRouter({
+      controllerDir,
+      jwts,
+      defaultScope: scope,
+    });
+    app.use('/rest', router);
+  }
+  return app;
 };

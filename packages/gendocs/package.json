@@ -1,0 +1,22 @@
+{
+  "name": "cantian-gendocs",
+  "version": "0.0.7",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "static"
+  ],
+  "bin": {
+    "cantian-docs-server": "./dist/bin/docs-server.js",
+    "cantian-gen-docs": "./dist/bin/gen.js"
+  },
+  "scripts": {
+    "prepublishOnly": "rm -rf dist && tsc"
+  },
+  "dependencies": {
+    "cantian-rest": "^0.0.7"
+  }
+}
