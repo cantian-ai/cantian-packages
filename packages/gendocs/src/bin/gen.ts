@@ -35,6 +35,14 @@ for (const controllerFilePath of controllerFilePaths) {
     responses: {},
   };
 
+  if (defaultClass.scope) {
+    spec.tags.push(defaultClass.scope);
+  }
+
+  if (defaultClass.isPublic) {
+    spec.tags.push('PUBLIC');
+  }
+
   const resultSchema = await defaultClass.resultSchema();
   if (resultSchema) {
     spec.responses[defaultClass.successStatusCode] = {

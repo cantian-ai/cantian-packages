@@ -2,6 +2,9 @@
 import { express, registerControllers } from 'cantian-rest';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { inspect } from 'node:util';
+
+inspect.defaultOptions.depth = 12;
 
 const { JWTS, SCOPE, PORT = 3001, OPENAPI_SPEC_PATH = 'tmp/openapi.json' } = process.env;
 

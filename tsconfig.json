@@ -12,6 +12,9 @@
     },
     {
       "path": "packages/gendocs"
+    },
+    {
+      "path": "packages/api"
     }
   ]
 }

@@ -6,6 +6,7 @@ import { glob } from 'node:fs/promises';
 import { BaseController } from './BaseController.js';
 import { RestError } from './RestError.js';
 import { app } from './app.js';
+import { openApiPathToExpressPath } from './util.js';
 
 export const createAuthHandler = (options: { jwts: string; scope?: string }) => async (req: Request, res, next) => {
   const authorization = req.headers['authorization'];
@@ -25,9 +26,8 @@ export const createAuthHandler = (options: { jwts: string; scope?: string }) => 
     }
     const { payload } = await jwtVerify(token, jwts);
 
-    let scopes: string[] | undefined;
+    const scopes = (payload.scope as string | undefined)?.split(' ');
     if (options.scope) {
-      scopes = (payload.scope as string | undefined)?.split(' ');
       if (!scopes?.includes(options.scope)) {
         throw RestError.forbidden();
       }
@@ -39,6 +39,11 @@ export const createAuthHandler = (options: { jwts: string; scope?: string }) => 
       aud: payload.aud as string,
       scopes,
     };
+
+    if (scopes?.includes('*:admin')) {
+      req.auth.sub = req.header('x-personate-sub') || req.auth.sub;
+    }
+
     return next();
   } catch (error) {
     if (!(error instanceof RestError)) {
@@ -83,7 +88,7 @@ export const createControllerRouter = async (options: { controllerDir: string; j
     if (!allowedMethods.includes(method as any)) {
       throw new Error(`The method is invalid for the file ${controllerFile}.`);
     }
-    const urlPath = '/' + parts.join('/');
+    const urlPath = '/' + parts.map((p) => openApiPathToExpressPath(p)).join('/');
     const { default: c }: { default: typeof BaseController } = await import(`${controllerDir}/${controllerFile}`);
     if (!c.isPublic) {
       if (!jwts) {
