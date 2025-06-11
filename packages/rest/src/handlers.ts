@@ -1,3 +1,4 @@
+import { createTraceHandler } from 'cantian-als';
 import cors from 'cors';
 import express, { json, Request, Response } from 'express';
 import { createLocalJWKSet, createRemoteJWKSet, jwtVerify } from 'jose';
@@ -69,17 +70,16 @@ export const createControllerRouter = async (options: { controllerDir: string; j
   const allowedMethods = ['get', 'post', 'patch'] as const;
   const controllerFiles = glob('**/*.js', { cwd: controllerDir });
   const router = express.Router();
+  router.use(cors());
   router.use(json());
   router.use((req, res, next) => {
-    console.log(
-      JSON.stringify({
-        event: 'REQUEST',
-        time: new Date().toISOString(),
-        method: req.method,
-        path: req.path,
-        data: req.body,
-      }),
-    );
+    console.log({
+      event: 'REQUEST',
+      time: new Date().toISOString(),
+      method: req.method,
+      path: req.path,
+      data: req.body,
+    });
     next();
   });
   for await (const controllerFile of controllerFiles) {
@@ -101,13 +101,11 @@ export const createControllerRouter = async (options: { controllerDir: string; j
   }
   router.use(catchError);
   router.use((req, res, next) => {
-    console.log(
-      JSON.stringify({
-        event: 'RESPONSE',
-        time: new Date().toISOString(),
-        statusCode: res.statusCode,
-      }),
-    );
+    console.log({
+      event: 'RESPONSE',
+      time: new Date().toISOString(),
+      statusCode: res.statusCode,
+    });
     next();
   });
   return router;
@@ -135,7 +133,7 @@ export const catchError = (err, req, res: Response, next) => {
 export const registerControllers = async (options: { jwts?: string; scope?: string }) => {
   const { jwts, scope } = options;
 
-  app.use(cors());
+  app.use(createTraceHandler());
 
   if (existsSync('dist/controllers')) {
     const controllerDir = process.cwd() + '/dist/controllers/';

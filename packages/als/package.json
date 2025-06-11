@@ -1,5 +1,5 @@
 {
-  "name": "cantian-api",
+  "name": "cantian-als",
   "version": "0.0.22",
   "type": "module",
   "exports": {
@@ -10,8 +10,5 @@
   ],
   "scripts": {
     "prepublishOnly": "rm -rf dist && tsc"
-  },
-  "dependencies": {
-    "cantian-als": "*"
   }
 }

@@ -2,6 +2,9 @@
   "files": [],
   "references": [
     {
+      "path": "packages/log"
+    },
+    {
       "path": "packages/rest"
     },
     {
@@ -15,6 +18,9 @@
     },
     {
       "path": "packages/api"
+    },
+    {
+      "path": "packages/als"
     }
   ]
 }

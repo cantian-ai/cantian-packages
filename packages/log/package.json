@@ -1,5 +1,5 @@
 {
-  "name": "cantian-api",
+  "name": "cantian-log",
   "version": "0.0.22",
   "type": "module",
   "exports": {
@@ -12,6 +12,6 @@
     "prepublishOnly": "rm -rf dist && tsc"
   },
   "dependencies": {
-    "cantian-als": "*"
+    "@alicloud/log": "^1.2.5"
   }
 }

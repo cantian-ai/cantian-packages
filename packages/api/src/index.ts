@@ -1,3 +1,5 @@
+import { getTraceId } from 'cantian-als';
+
 export type API_OPTIONS = {
   basepath?: string;
   path: string; // Without '/rest' prefix
@@ -13,6 +15,7 @@ export const api = async (options: API_OPTIONS) => {
   const headers = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${key}`,
+    'x-trace-id': getTraceId(),
   };
   if (options.personateSub) {
     headers['x-personate-sub'] = options.personateSub;
