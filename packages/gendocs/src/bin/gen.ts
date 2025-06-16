@@ -93,7 +93,5 @@ for (const controllerFilePath of controllerFilePaths) {
   specs[apiPath][method] = spec;
 }
 
-console.log(specs);
-
 mkdirSync('tmp', { recursive: true });
 writeFileSync(OPENAPI_SPEC_PATH, JSON.stringify(specs, null, 2));

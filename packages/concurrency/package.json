@@ -1,6 +1,6 @@
 {
   "name": "cantian-concurrency",
-  "version": "0.0.22",
+  "version": "0.0.28",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"

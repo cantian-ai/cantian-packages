@@ -59,6 +59,8 @@ export const createBizHandler = (c: typeof BaseController) => async (req: Reques
     data: req.body,
     auth: req.auth,
     pathParams: req.params,
+    rawBody: req.rawBody,
+    headers: req.headers,
   });
   const result = await controller.execute();
   res.status(c.successStatusCode).json(result);
@@ -71,7 +73,13 @@ export const createControllerRouter = async (options: { controllerDir: string; j
   const controllerFiles = glob('**/*.js', { cwd: controllerDir });
   const router = express.Router();
   router.use(cors());
-  router.use(json());
+  router.use(
+    json({
+      verify: (req, res, buf) => {
+        (req as Request).rawBody = buf;
+      },
+    }),
+  );
   router.use((req, res, next) => {
     console.log({
       event: 'REQUEST',
@@ -79,6 +87,7 @@ export const createControllerRouter = async (options: { controllerDir: string; j
       method: req.method,
       path: req.path,
       data: req.body,
+      headers: req.headers,
     });
     next();
   });
@@ -90,6 +99,7 @@ export const createControllerRouter = async (options: { controllerDir: string; j
     }
     const urlPath = '/' + parts.map((p) => openApiPathToExpressPath(p)).join('/');
     const { default: c }: { default: typeof BaseController } = await import(`${controllerDir}/${controllerFile}`);
+
     if (!c.isPublic) {
       if (!jwts) {
         throw new Error(`A JWTS configuration is required since the controller ${urlPath}/${method} is private.`);

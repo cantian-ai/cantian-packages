@@ -1,14 +1,23 @@
 import { AsyncLocalStorage } from 'async_hooks';
+import { randomBytes } from 'crypto';
 
 function generateTraceId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const buffer = randomBytes(6);
+  const bigInt = BigInt('0x' + buffer.toString('hex'));
+  return bigInt.toString(36);
 }
 
 if (!globalThis.__alsInstance) {
   globalThis.__alsInstance = new AsyncLocalStorage<{ traceId: string }>();
 }
-export const createTraceHandler = (options?: { generateTraceId?: () => string }) => (req, res, next) => {
-  const traceId = req.headers['x-trace-id'] || options?.generateTraceId?.() || generateTraceId();
+export const createTraceHandler = () => (req, res, next) => {
+  let traceId: string = req.headers['x-trace-id'];
+  if (typeof traceId === 'string') {
+    console.log(`Use traceId from header: ${traceId}`);
+  } else {
+    traceId = generateTraceId();
+    console.log(`Generate a new traceId: ${traceId}`);
+  }
   globalThis.__alsInstance.run({ traceId }, () => {
     next();
   });

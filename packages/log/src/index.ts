@@ -26,26 +26,25 @@ export const initLog = (options: { addTags?: typeof getTags }) => {
   }
 };
 
-const logQueue: { level: string; args: any[] }[] = [];
+type LogQueueItem = { level: string; args: any[]; timestamp: number; tags?: Record<string, string> };
+const logQueue: LogQueueItem[] = [];
 let sending = false;
 
 async function processQueue() {
   if (sending || logQueue.length === 0) return;
   sending = true;
-  const { level, args } = logQueue.shift()!;
-  const tags: Record<string, string>[] = [];
+  const logs = logQueue.splice(0, 10);
   try {
-    if (getTags) {
-      const t = getTags(level, args);
-      if (t) {
-        tags.push(t);
-      }
-    }
     await sls.postLogStoreLogs(projectName, logstoreName, {
-      logs: [{ timestamp: Math.floor(Date.now() / 1000), content: args.map((arg) => inspect(arg, { depth: null })) }],
+      logs: logs.map((log) => ({
+        timestamp: log.timestamp,
+        content: {
+          ...log.tags,
+          level: log.level,
+          message: inspect(log.args, { depth: null }),
+        } as Record<string, string>,
+      })),
       source: source,
-      topic: level,
-      tags,
     });
   } catch (e) {
     origin.error(e);
@@ -54,14 +53,18 @@ async function processQueue() {
   processQueue();
 }
 
-function logToSls(level, args: any[]) {
-  logQueue.push({ level, args });
+function logToSls(logQueueItem: LogQueueItem) {
+  logQueue.push(logQueueItem);
   processQueue();
 }
 
 for (const method of Object.keys(origin)) {
   console[method] = (...args) => {
     origin[method](...args);
-    logToSls(method, args);
+    let tags: undefined | Record<string, string> = undefined;
+    if (getTags) {
+      tags = getTags(method, args);
+    }
+    logToSls({ level: method.toUpperCase(), args, tags, timestamp: Math.floor(Date.now() / 1000) });
   };
 }

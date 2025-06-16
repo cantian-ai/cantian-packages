@@ -1,5 +1,6 @@
 import Ajv, { ValidateFunction } from 'ajv';
 import { JSONSchema } from 'json-schema-to-ts';
+import { IncomingHttpHeaders } from 'node:http';
 import { RestError } from './RestError.js';
 import { Auth } from './type.js';
 
@@ -24,6 +25,8 @@ export class BaseController {
   data?: any;
   auth?: Auth;
   pathParams?: Record<string, string>;
+  rawBody?: Buffer;
+  headers?: IncomingHttpHeaders;
 
   static init() {
     const dataSchema = this.dataSchema();
@@ -33,11 +36,19 @@ export class BaseController {
     this.validateResult = resultSchema ? this.resultAjv.compile(resultSchema) : undefined;
   }
 
-  constructor(event: { data?: any; auth?: Auth; pathParams?: Record<string, string> }) {
+  constructor(event: {
+    data?: any;
+    auth?: Auth;
+    pathParams?: Record<string, string>;
+    rawBody?: Buffer;
+    headers?: IncomingHttpHeaders;
+  }) {
     const constructor = this.constructor as typeof BaseController;
     this.data = event.data;
     this.auth = event.auth;
     this.pathParams = event.pathParams;
+    this.rawBody = event.rawBody;
+    this.headers = event.headers;
     if (!constructor.inited) {
       constructor.init();
     }

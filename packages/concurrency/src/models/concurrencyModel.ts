@@ -10,14 +10,11 @@ export const concurrencyModelSchema = {
     },
     acquirers: {
       type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          acquirer: { type: 'string' },
-          acquiredAt: { type: 'string' },
-        },
-        additionalProperties: false,
-      },
+      items: { type: 'string' },
+    },
+    lastLockStatus: {
+      type: 'string',
+      description: 'The status of the last operation. Will not affect the updatedAt field if not SUCCESS.'
     },
     createdAt: { type: 'string' },
     updatedAt: { type: 'string' },
