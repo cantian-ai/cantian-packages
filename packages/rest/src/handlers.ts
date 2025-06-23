@@ -1,7 +1,7 @@
 import { createTraceHandler } from 'cantian-als';
 import cors from 'cors';
 import express, { json, Request, Response } from 'express';
-import { createLocalJWKSet, createRemoteJWKSet, jwtVerify } from 'jose';
+import { createLocalJWKSet, jwtVerify } from 'jose';
 import { existsSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
 import { BaseController } from './BaseController.js';
@@ -9,49 +9,45 @@ import { RestError } from './RestError.js';
 import { app } from './app.js';
 import { openApiPathToExpressPath } from './util.js';
 
-export const createAuthHandler = (options: { jwts: string; scope?: string }) => async (req: Request, res, next) => {
-  const authorization = req.headers['authorization'];
-  if (!authorization) {
-    throw RestError.unauthorized('Authorization header is required.');
-  }
-  const [tokenType, token] = authorization.split(' ');
-  if (tokenType !== 'Bearer') {
-    throw RestError.unauthorized('Authorization token type is unsupported.');
-  }
-  try {
-    let jwts;
-    if (options.jwts.startsWith('http')) {
-      jwts = createRemoteJWKSet(new URL(options.jwts));
-    } else {
-      jwts = createLocalJWKSet(JSON.parse(jwts));
+export const createAuthHandler = (options: { jwts: string; scope?: string }) => {
+  const jwts = createLocalJWKSet(JSON.parse(options.jwts));
+  return async (req: Request, res, next) => {
+    let token = (req.headers['token'] || req.headers['authorization']) as string;
+    if (!token) {
+      throw RestError.unauthorized('Authorization header is required.');
     }
-    const { payload } = await jwtVerify(token, jwts);
+    if (token.startsWith('Bearer ')) {
+      token = token.replace('Bearer ', '');
+    }
+    try {
+      const { payload } = await jwtVerify(token, jwts);
 
-    const scopes = (payload.scope as string | undefined)?.split(' ');
-    if (options.scope) {
-      if (!scopes?.includes(options.scope)) {
-        throw RestError.forbidden();
+      const scopes = (payload.scope as string | undefined)?.split(' ');
+      if (options.scope) {
+        if (!scopes?.includes(options.scope)) {
+          throw RestError.forbidden();
+        }
       }
-    }
 
-    req.auth = {
-      sub: payload.sub as string,
-      name: payload.name as string,
-      aud: payload.aud as string,
-      scopes,
-    };
+      req.auth = {
+        sub: payload.sub as string,
+        name: payload.name as string,
+        aud: payload.aud as string,
+        scopes,
+      };
 
-    if (scopes?.includes('*:admin')) {
-      req.auth.sub = req.header('x-personate-sub') || req.auth.sub;
-    }
+      if (scopes?.includes('*:admin')) {
+        req.auth.sub = req.header('x-personate-sub') || req.auth.sub;
+      }
 
-    return next();
-  } catch (error) {
-    if (!(error instanceof RestError)) {
-      throw RestError.unauthorized();
+      return next();
+    } catch (error) {
+      if (!(error instanceof RestError)) {
+        throw RestError.unauthorized();
+      }
+      throw error;
     }
-    throw error;
-  }
+  };
 };
 
 export const createBizHandler = (c: typeof BaseController) => async (req: Request, res: Response, next) => {
@@ -62,8 +58,11 @@ export const createBizHandler = (c: typeof BaseController) => async (req: Reques
     rawBody: req.rawBody,
     headers: req.headers,
   });
+  if (c.useHttpCode) {
+    req.useHttpCode = c.useHttpCode;
+  }
   const result = await controller.execute();
-  res.status(c.successStatusCode).json(result);
+  sendResponse(undefined, result, req, res);
   next();
 };
 
@@ -122,21 +121,20 @@ export const createControllerRouter = async (options: { controllerDir: string; j
 };
 
 export const catchError = (err, req, res: Response, next) => {
+  let json;
   if (err instanceof RestError) {
-    res.status(err.statusCode).json({
-      error: {
-        data: err.errorData,
-        message: err.errorMessage,
-      },
-    });
+    json = {
+      code: err.statusCode,
+      data: err.errorData,
+    };
   } else {
     console.error(err);
-    res.status(500).json({
-      error: {
-        message: 'Internal error.',
-      },
-    });
+    json = {
+      code: 500,
+      data: {},
+    };
   }
+  sendResponse(err, undefined, req, res);
   next();
 };
 
@@ -156,3 +154,27 @@ export const registerControllers = async (options: { jwts?: string; scope?: stri
   }
   return app;
 };
+
+function sendResponse(error, result, req: Request, res: Response) {
+  let code, data;
+  if (error) {
+    if (error instanceof RestError) {
+      code = error.statusCode;
+      data = error.errorData;
+    } else {
+      code = 500;
+      data = {};
+    }
+  } else {
+    code = 200;
+    data = result;
+  }
+  if (req.useHttpCode) {
+    res.status(code).json(data);
+  } else {
+    res.status(200).json({
+      code: code === 200 ? 1 : code,
+      data,
+    });
+  }
+}

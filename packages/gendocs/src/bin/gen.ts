@@ -45,16 +45,16 @@ for (const controllerFilePath of controllerFilePaths) {
 
   const resultSchema = await defaultClass.resultSchema();
   if (resultSchema) {
-    spec.responses[defaultClass.successStatusCode] = {
+    spec.responses[200] = {
       content: {
         'application/json': {
           schema: {
             type: 'object',
             properties: {
-              errorCode: { type: 'number' },
+              code: { type: 'number' },
               data: resultSchema,
             },
-            required: ['data', 'errorCode'],
+            required: ['data', 'code'],
             additionalProperties: false,
           },
         },

@@ -11,6 +11,7 @@ declare module 'express-serve-static-core' {
   interface Request {
     auth?: Auth;
     rawBody: Buffer;
+    useHttpCode?: boolean;
   }
 }
 

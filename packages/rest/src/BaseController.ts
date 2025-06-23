@@ -5,7 +5,7 @@ import { RestError } from './RestError.js';
 import { Auth } from './type.js';
 
 export class BaseController {
-  static successStatusCode = 200;
+  static useHttpCode?: boolean;
   static summary: string;
   static description: string;
 
