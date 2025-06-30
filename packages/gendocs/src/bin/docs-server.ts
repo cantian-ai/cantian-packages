@@ -8,6 +8,10 @@ inspect.defaultOptions.depth = 12;
 
 const { JWTS, SCOPE, PORT = 3001, OPENAPI_SPEC_PATH = 'tmp/openapi.json' } = process.env;
 
+if (!JWTS) {
+  throw new Error('The env JWTS is undefined.');
+}
+
 const app = await registerControllers({ jwts: JWTS, scope: SCOPE });
 
 const openapiSpecAbsolutePath = `${process.cwd()}/${OPENAPI_SPEC_PATH}`;

@@ -6,6 +6,10 @@ import { registerControllers } from '../handlers.js';
 
 const { JWTS, SCOPE, PORT = 3001 } = process.env;
 
+if (!JWTS) {
+  throw new Error('The env JWTS is undefined.');
+}
+
 initLog({
   addTags() {
     const traceId = getTraceId();
