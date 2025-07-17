@@ -1,6 +1,6 @@
 import { getShenFromDayun, getShenFromSizhu } from './shen.js';
 
-const bazi = '甲戌 甲戌 丁酉 己酉';
+const bazi = '乙亥 癸未 壬戌 丁未';
 
 const shen = getShenFromSizhu(bazi, 1);
 console.log(shen);

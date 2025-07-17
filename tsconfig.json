@@ -26,9 +26,6 @@
       "path": "packages/mongorest"
     },
     {
-      "path": "packages/restmcp"
-    },
-    {
       "path": "packages/tymext"
     }
   ]

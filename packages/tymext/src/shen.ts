@@ -1,3 +1,67 @@
+// 纳音
+const NAYIN_MAP = {
+  甲子: '海中金',
+  甲午: '沙中金',
+  丙寅: '炉中火',
+  丙申: '山下火',
+  戊辰: '大林木',
+  戊戌: '平地木',
+  庚午: '路旁土',
+  庚子: '壁上土',
+  壬申: '剑锋金',
+  壬寅: '金箔金',
+  甲戌: '山头火',
+  甲辰: '覆灯火',
+  丙子: '涧下水',
+  丙午: '天河水',
+  戊寅: '城头土',
+  戊申: '大驿土',
+  庚辰: '白蜡金',
+  庚戌: '钗钏金',
+  壬午: '杨柳木',
+  壬子: '桑柘木',
+  甲申: '泉中水',
+  甲寅: '大溪水',
+  丙戌: '屋上土',
+  丙辰: '沙中土',
+  戊子: '霹雳火',
+  戊午: '天上火',
+  庚寅: '松柏木',
+  庚申: '石榴木',
+  壬辰: '长流水',
+  壬戌: '大海水',
+  乙丑: '海中金',
+  乙未: '沙中金',
+  丁卯: '炉中火',
+  丁酉: '山下火',
+  己巳: '大林木',
+  己亥: '平地木',
+  辛未: '路旁土',
+  辛丑: '壁上土',
+  癸酉: '剑锋金',
+  癸卯: '金箔金',
+  乙亥: '山头火',
+  乙巳: '覆灯火',
+  丁丑: '涧下水',
+  丁未: '天河水',
+  己卯: '城头土',
+  己酉: '大驿土',
+  辛巳: '白蜡金',
+  辛亥: '钗钏金',
+  癸未: '杨柳木',
+  癸丑: '桑柘木',
+  乙酉: '泉中水',
+  乙卯: '大溪水',
+  丁亥: '屋上土',
+  丁巳: '沙中土',
+  己丑: '霹雳火',
+  己未: '天上火',
+  辛卯: '松柏木',
+  辛酉: '石榴木',
+  癸巳: '长流水',
+  癸亥: '大海水',
+};
+
 // 基于月支判断的神煞 (各柱天干对月支)
 const SHEN_MAP_MONTHZHI_GAN: Record<string, Record<string, string>> = {
   天德贵人: {
@@ -542,6 +606,7 @@ const SHEN_DAY_ZHU: Record<string, string[]> = {
   孤鸾: ['甲寅', '乙巳', '丙午', '丁巳', '戊午', '戊申', '辛亥', '壬子'],
   十恶大败: ['甲辰', '乙巳', '壬申', '丙申', '丁亥', '庚辰', '戊戌', '癸亥', '辛巳', '己丑'],
   金神: ['乙丑', '己巳', '癸酉'],
+  进神: ['甲子', '甲午', '己卯', '己酉'],
 };
 
 // 基于日干和四柱的关系判断
@@ -823,6 +888,7 @@ function convertSizhu(ganzhiString: string): SizhuInfo {
 // 主函数：获得神煞排盘
 export function getShenFromSizhu(ganzhiString: string, gender: number = 1): ShenResult {
   const sizhu = convertSizhu(ganzhiString);
+  const yearNayin = NAYIN_MAP[sizhu.year.gan + sizhu.year.zhi];
   const result: ShenResult = {
     year: [],
     month: [],
@@ -919,8 +985,17 @@ export function getShenFromSizhu(ganzhiString: string, gender: number = 1): Shen
   }
 
   // 基于年柱纳音的判断 （学堂，词馆等）
-  // 注：这里需要传入年柱的纳音，暂时省略具体实现
-  // 可以根据需要添加纳音判断逻辑
+  for (const [shen, shenDict] of Object.entries(SHEN_YEAR_GAN_NAYIN)) {
+    for (const [wuxing, matchZhi] of Object.entries(shenDict)) {
+      if (yearNayin.includes(wuxing)) {
+        for (const [zhu, zhi] of Object.entries(zhiArray)) {
+          if (zhu !== 'year' && zhi === matchZhi) {
+            result[zhu as keyof ShenResult].push(shen);
+          }
+        }
+      }
+    }
+  }
 
   // 基于月支和日柱判断的神煞 (月支对日柱)
   for (const [shen, shenDict] of Object.entries(SHEN_MONTHZHI_DAYZHU)) {
@@ -997,7 +1072,11 @@ export function getShenFromSizhu(ganzhiString: string, gender: number = 1): Shen
   }
 
   // 判断天罗地网
-  // 注：这里需要传入年柱的纳音，暂时省略具体实现
+  for (const [wuxing, rule] of Object.entries(TIAN_LUO_DI_WANG)) {
+    if (yearNayin.includes(wuxing) && rule.includes(sizhu.day.zhi)) {
+      result.day.push('天罗地网');
+    }
+  }
 
   // 判断元辰
   let yinyang = '';
@@ -1032,6 +1111,17 @@ export function getShenFromSizhu(ganzhiString: string, gender: number = 1): Shen
         result.day.push(strTongzi);
       }
       if (rule.includes(sizhu.time.zhi)) {
+        result.time.push(strTongzi);
+      }
+    }
+  }
+
+  for (const [yearEle, rule] of Object.entries(TONGZI_SHA_YEAR_NAYIN)) {
+    if (yearNayin.includes(yearEle)) {
+      if (rule.includes(sizhu.day.zhi) && !result.day.includes(strTongzi)) {
+        result.day.push(strTongzi);
+      }
+      if (rule.includes(sizhu.time.zhi) && !result.time.includes(strTongzi)) {
         result.time.push(strTongzi);
       }
     }
