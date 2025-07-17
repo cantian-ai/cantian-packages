@@ -1,6 +1,6 @@
 {
-  "name": "cantian-log",
-  "version": "0.0.25",
+  "name": "cantian-tymext",
+  "version": "0.0.4",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"
@@ -10,8 +10,5 @@
   ],
   "scripts": {
     "prepublishOnly": "rm -rf dist && tsc"
-  },
-  "dependencies": {
-    "@alicloud/log": "^1.2.5"
   }
 }

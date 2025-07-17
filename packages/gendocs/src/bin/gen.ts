@@ -95,3 +95,5 @@ for (const controllerFilePath of controllerFilePaths) {
 
 mkdirSync('tmp', { recursive: true });
 writeFileSync(OPENAPI_SPEC_PATH, JSON.stringify(specs, null, 2));
+
+process.exit();

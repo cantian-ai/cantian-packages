@@ -1,11 +1,18 @@
 import { Collection } from 'cantian-mongodb';
+import { JSONSchema } from 'json-schema-to-ts';
 
 // Make all fields of T optional and allow null values.
 export type PartialWithNull<T> = {
   [K in keyof T]?: T[K] | null;
 };
 
-export const modelSchemaToApiSchema = (options: { modelSchema; deleteFields?: string[] }) => {
+export type OriginModel = Record<string, any> & { _id?: string };
+
+export const modelSchemaToApiSchema = (options: {
+  modelSchema;
+  deleteFields?: string[];
+  addFields?: Record<string, JSONSchema>;
+}) => {
   const { modelSchema, deleteFields } = options;
   const newSchema = structuredClone(modelSchema);
   if (newSchema.properties) {
@@ -18,12 +25,17 @@ export const modelSchemaToApiSchema = (options: { modelSchema; deleteFields?: st
         delete newSchema.properties[deleteField];
       }
     }
+    if (options.addFields) {
+      for (const [field, schema] of Object.entries(options.addFields)) {
+        newSchema.properties[field] = schema;
+      }
+    }
   }
   return newSchema;
 };
 
-export const modelToApiObject = (options: { model; deleteFields?: string[] }) => {
-  const model = structuredClone(options.model);
+export const modelToApiObject = <T extends OriginModel>(options: { model: T; deleteFields?: string[] }) => {
+  const model = structuredClone(options.model) as T & { id: string };
   if (options.deleteFields?.length) {
     for (let deleteField of options.deleteFields) {
       delete model[deleteField];
@@ -33,11 +45,11 @@ export const modelToApiObject = (options: { model; deleteFields?: string[] }) =>
     model.id = model._id;
     delete model._id;
   }
-  return model;
+  return model as Omit<T, '_id'> & { id: string };
 };
 
-export const modelsToApiObjects = (options: { models; deleteFields?: string[] }) => {
-  const results: any[] = [];
+export const modelsToApiObjects = <T extends OriginModel>(options: { models: T[]; deleteFields?: string[] }) => {
+  const results: (Omit<T, '_id'> & { id: string })[] = [];
   for (const model of options.models) {
     results.push(modelToApiObject({ model, deleteFields: options.deleteFields }));
   }

@@ -29,4 +29,8 @@ export class RestError {
   static conflict(errorMessage?: string, errorData?: ErrorResponseBody['errorData']) {
     return new RestError(409, errorMessage || 'Conflict.', errorData);
   }
+
+  static tooManyRequests(errorMessage?: string, errorData?: ErrorResponseBody['errorData']) {
+    return new RestError(429, errorMessage || 'Too many requests.', errorData);
+  }
 }

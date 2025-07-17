@@ -27,7 +27,11 @@ export const api = async (options: API_OPTIONS) => {
     method,
   });
   if (response.ok) {
-    return await response.json();
+    const result = (await response.json()) as { code: number; data: any };
+    if (result.code !== 1) {
+      throw new Error(JSON.stringify(result));
+    }
+    return result.data;
   } else {
     const text = await response.text();
     console.error({

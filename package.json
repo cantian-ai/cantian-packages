@@ -10,5 +10,8 @@
   "scripts": {
     "clean": "rm -rf packages/**/dist",
     "tsc": "npm run clean && tsc --build"
+  },
+  "dependencies": {
+    "supertest": "^7.1.1"
   }
 }

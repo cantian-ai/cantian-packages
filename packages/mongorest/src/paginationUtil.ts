@@ -1,14 +1,14 @@
 import { JSONSchema } from 'json-schema-to-ts';
-import { Collection, Document } from 'mongodb';
-import { modelSchemaToApiSchema, modelsToApiObjects } from './modelUtil.js';
+import { Collection } from 'mongodb';
+import { modelSchemaToApiSchema, modelsToApiObjects, OriginModel } from './modelUtil.js';
 
 export interface Pagination {
   offset: number;
   limit: number;
 }
 
-export interface PaginationResult<T> {
-  results: T[];
+export interface PaginationResult<T extends OriginModel> {
+  results: (Omit<T, '_id'> & { id: string })[];
   pagination: {
     limit: number;
     offset: number;
@@ -16,11 +16,11 @@ export interface PaginationResult<T> {
   };
 }
 
-export interface SearchOptions<T extends Document> {
+export interface SearchOptions<T extends OriginModel> {
   collection: Collection<T>;
   pagination?: Partial<Pagination>;
   filter?: object;
-  sort?: object;
+  sort?: { field: string; order: 1 | -1 }[];
 }
 
 export const PAGINATION_SCHEMA = {
@@ -34,7 +34,37 @@ export const PAGINATION_SCHEMA = {
   additionalProperties: false,
 } as const satisfies JSONSchema;
 
-export const buildSearchReulstSchema = (options: { modelSchema; deleteFields?: string[] }) => {
+export const SORT_SCHEMA = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      field: { type: 'string', description: 'The field name to sort by.' },
+      order: { type: 'number', enum: [1, -1], description: '1: ASC, -1: DESC.' },
+    },
+    required: ['field', 'order'],
+    additionalProperties: false,
+  },
+  default: [{ field: 'id', order: -1 }],
+  description: 'The sort order. Default is `[{id: -1}]` which means sort by `id` in descending order.',
+} as const satisfies JSONSchema;
+
+export const buildFilterFieldSchema = (type: 'string' | 'number') => {
+  return {
+    type: 'object',
+    properties: {
+      $gt: { type: type, description: 'Filter by field greater than the given value.' },
+      $lt: { type: type, description: 'Filter by field less than the given value.' },
+    },
+    additionalProperties: false,
+  } as const satisfies JSONSchema;
+};
+
+export const buildSearchReulstSchema = (options: {
+  modelSchema;
+  deleteFields?: string[];
+  addFields?: Record<string, JSONSchema>;
+}) => {
   return {
     type: 'object',
     properties: {
@@ -59,12 +89,20 @@ export const buildSearchReulstSchema = (options: { modelSchema; deleteFields?: s
  * @param options - Query options containing collection, pagination, query, and sort
  * @returns Promise containing results and pagination metadata
  */
-export async function search<T extends Document>(options: SearchOptions<T>): Promise<PaginationResult<T>> {
-  const { collection, filter = {}, sort = { createdAt: -1 }, pagination = {} } = options;
-
-  // Set default values for limit and offset
+export async function search<T extends OriginModel>(options: SearchOptions<T>): Promise<PaginationResult<T>> {
+  const { collection, filter = {}, sort = [{ field: 'id', order: -1 }], pagination = {} } = options;
   const limit = pagination.limit ?? 100;
   const offset = pagination.offset ?? 0;
+  const sortObject = {};
+  const fixedSort = sort.map((item) => {
+    if (item.field === 'id') {
+      return { field: '_id', order: item.order };
+    }
+    return item;
+  });
+  for (const sortItem of fixedSort) {
+    sortObject[sortItem.field] = sortItem.order;
+  }
 
   // Use aggregation to get both results and total count in one query
   const [aggregateResult] = await collection
@@ -72,7 +110,7 @@ export async function search<T extends Document>(options: SearchOptions<T>): Pro
       { $match: filter },
       {
         $facet: {
-          results: [{ $sort: sort }, { $skip: offset }, { $limit: limit }],
+          results: [{ $sort: sortObject }, { $skip: offset }, { $limit: limit }],
           totalCount: [{ $count: 'count' }],
         },
       },

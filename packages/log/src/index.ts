@@ -21,6 +21,16 @@ const origin = {
 
 let getTags: undefined | ((level: string, args: any[]) => Record<string, string> | undefined);
 export const initLog = (options: { addTags?: typeof getTags }) => {
+  for (const method of Object.keys(origin)) {
+    console[method] = (...args) => {
+      origin[method](...args);
+      let tags: undefined | Record<string, string> = undefined;
+      if (getTags) {
+        tags = getTags(method, args);
+      }
+      logToSls({ level: method.toUpperCase(), args, tags, timestamp: Math.floor(Date.now() / 1000) });
+    };
+  }
   if (options.addTags) {
     getTags = options.addTags;
   }
@@ -56,15 +66,4 @@ async function processQueue() {
 function logToSls(logQueueItem: LogQueueItem) {
   logQueue.push(logQueueItem);
   processQueue();
-}
-
-for (const method of Object.keys(origin)) {
-  console[method] = (...args) => {
-    origin[method](...args);
-    let tags: undefined | Record<string, string> = undefined;
-    if (getTags) {
-      tags = getTags(method, args);
-    }
-    logToSls({ level: method.toUpperCase(), args, tags, timestamp: Math.floor(Date.now() / 1000) });
-  };
 }
