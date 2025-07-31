@@ -116,6 +116,26 @@ const ZHI_ANHE = {
   申卯: '暗合',
 };
 
+// 地支半三合映射 - 新增
+const ZHI_HALF_SANHE = {
+  申子: '水',
+  子辰: '水',
+  寅午: '火',
+  午戌: '火',
+  巳酉: '金',
+  酉丑: '金',
+  亥卯: '木',
+  卯未: '木',
+  子申: '水',
+  辰子: '水',
+  午寅: '火',
+  戌午: '火',
+  酉巳: '金',
+  丑酉: '金',
+  卯亥: '木',
+  未卯: '木',
+};
+
 // 地支三合映射
 const ZHI_SANHE = {
   申子辰: '水',
@@ -181,6 +201,7 @@ interface PillarRelation {
   拱?: RelationItem;
   双合?: RelationItem[];
   双冲?: RelationItem[];
+  伏吟?: RelationItem[];
 }
 
 // 辅助函数：添加关系到结果中
@@ -239,45 +260,51 @@ function checkZhiXing(zhi1: string, zhi2: string): string | false {
   return ZHI_XING[zhiStr] || false;
 }
 
-// 检查地支三合
+// 检查地支半三合 - 新增
+function checkHalfSanhe(zhi1: string, zhi2: string): string | false {
+  const zhiStr = zhi1 + zhi2;
+  return ZHI_HALF_SANHE[zhiStr] || false;
+}
+
+// 检查地支三合 - 修复
 function checkSanhe(zhiSet: Set<string>): string | false {
   if (zhiSet.size !== 3) return false;
 
   const zhiArray = Array.from(zhiSet).sort();
-  const zhiStr = zhiArray.join('');
 
   for (const [sanhe, element] of Object.entries(ZHI_SANHE)) {
-    if (new Set(sanhe) instanceof Set && Array.from(new Set(sanhe)).sort().join('') === zhiStr) {
+    const sanheArray = Array.from(sanhe).sort();
+    if (zhiArray.join('') === sanheArray.join('')) {
       return element;
     }
   }
   return false;
 }
 
-// 检查地支三会
+// 检查地支三会 - 修复
 function checkSanhui(zhiSet: Set<string>): string | false {
   if (zhiSet.size !== 3) return false;
 
   const zhiArray = Array.from(zhiSet).sort();
-  const zhiStr = zhiArray.join('');
 
   for (const [sanhui, element] of Object.entries(ZHI_SANHUI)) {
-    if (new Set(sanhui) instanceof Set && Array.from(new Set(sanhui)).sort().join('') === zhiStr) {
+    const sanhuiArray = Array.from(sanhui).sort();
+    if (zhiArray.join('') === sanhuiArray.join('')) {
       return element;
     }
   }
   return false;
 }
 
-// 检查地支三刑
+// 检查地支三刑 - 修复
 function checkSanxing(zhiSet: Set<string>): string | false {
   if (zhiSet.size !== 3) return false;
 
   const zhiArray = Array.from(zhiSet).sort();
-  const zhiStr = zhiArray.join('');
 
   for (const [sanxing, description] of Object.entries(ZHI_SANXING)) {
-    if (new Set(sanxing) instanceof Set && Array.from(new Set(sanxing)).sort().join('') === zhiStr) {
+    const sanxingArray = Array.from(sanxing).sort();
+    if (zhiArray.join('') === sanxingArray.join('')) {
       return description;
     }
   }
@@ -501,6 +528,18 @@ export function calculateRelation(zhuArray: Record<string, ZhuData>): Record<str
         }
       }
 
+      // 检查半三合（二元）- 新增
+      if (!sanheFlag) {
+        const halfSanheResult = checkHalfSanhe(data1.地支, data2.地支);
+        if (halfSanheResult) {
+          addToRelation(relation[zhu1].地支, '半合', {
+            柱: zhu2,
+            知识点: `${data1.地支}${data2.地支}半合${halfSanheResult}`,
+            元素: halfSanheResult,
+          });
+        }
+      }
+
       // 判断部分三刑（二元）
       if (!sanxingFlag) {
         const halfSanxingResult = checkHalfSanxing(data1.地支, data2.地支);
@@ -544,6 +583,25 @@ export function calculateRelation(zhuArray: Record<string, ZhuData>): Record<str
             知识点: `${zhu}与${ganRelation.柱}双合`,
           });
         }
+      }
+    }
+  }
+
+  // 增加伏吟情况 - 新增
+  for (const [zhu1, data1] of Object.entries(zhuArray)) {
+    const zhu1GanZhi = data1.天干 + data1.地支;
+
+    for (const [zhu2, data2] of Object.entries(zhuArray)) {
+      if (zhu1 === zhu2) continue;
+
+      const zhu2GanZhi = data2.天干 + data2.地支;
+
+      if (zhu1GanZhi === zhu2GanZhi) {
+        if (!relation[zhu1].伏吟) relation[zhu1].伏吟 = [];
+        relation[zhu1].伏吟.push({
+          柱: zhu2,
+          知识点: `${zhu1}柱与${zhu2}柱伏吟`,
+        });
       }
     }
   }
