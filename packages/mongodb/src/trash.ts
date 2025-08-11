@@ -17,12 +17,17 @@ export type TrashModel = FromSchema<typeof trashModelSchema>;
 
 const trashCollection = db.collection('trash');
 
-export const moveToTrash = async (source: string, origin: any) => {
+export const moveToTrash = async (source: string, origin: Record<string, any> | Record<string, any>[]) => {
   if (origin) {
-    await trashCollection.insertOne({
+    if (!Array.isArray(origin)) {
+      origin = [origin];
+    }
+    const now = new Date().toISOString();
+    const records = origin.map((o) => ({
       source,
-      origin,
-      deletedAt: new Date().toISOString(),
-    });
+      origin: o,
+      deletedAt: now,
+    }));
+    await trashCollection.insertMany(records);
   }
 };

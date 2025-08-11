@@ -50,14 +50,21 @@ export const SORT_SCHEMA = {
 } as const satisfies JSONSchema;
 
 export const buildFilterFieldSchema = (type: 'string' | 'number') => {
-  return {
+  const schema = {
     type: 'object',
     properties: {
       $gt: { type: type, description: 'Filter by field greater than the given value.' },
       $lt: { type: type, description: 'Filter by field less than the given value.' },
-    },
+    } as { $gt: JSONSchema; $lt: JSONSchema; $regex?: JSONSchema },
     additionalProperties: false,
   } as const satisfies JSONSchema;
+  if (type === 'string') {
+    schema.properties.$regex = {
+      type: 'string',
+      description: 'Filter by field matching the given regex. Do not wrap the regex by `/`. Example: `^abc`',
+    };
+  }
+  return schema;
 };
 
 export const buildSearchReulstSchema = (options: {
@@ -93,6 +100,7 @@ export async function search<T extends OriginModel>(options: SearchOptions<T>): 
   const { collection, filter = {}, sort = [{ field: 'id', order: -1 }], pagination = {} } = options;
   const limit = pagination.limit ?? 100;
   const offset = pagination.offset ?? 0;
+
   const sortObject = {};
   const fixedSort = sort.map((item) => {
     if (item.field === 'id') {

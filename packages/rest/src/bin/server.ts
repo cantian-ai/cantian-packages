@@ -22,3 +22,10 @@ initLog({
 (await registerControllers({ jwts: JWTS, scope: SCOPE })).listen(PORT, () => {
   console.info(`Server is ready on port ${PORT}.`);
 });
+
+process.on('SIGTERM', () => {
+  console.info('SIGTERM received. Keep alive so that async jobs can finish successfully.');
+  setInterval(() => {
+    console.info(`${process.env.CONTAINER_APP_REPLICA_NAME} keeps alive.`);
+  }, 10000);
+});
