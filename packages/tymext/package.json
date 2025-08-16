@@ -1,6 +1,6 @@
 {
   "name": "cantian-tymext",
-  "version": "0.0.10",
+  "version": "0.0.15",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"

@@ -74,4 +74,20 @@ export function getHuangli(time: { year: number; month: number; day: number }) {
   };
 }
 
+const COLORED_SHENGXIAO_MAP = {
+  甲: '青',
+  乙: '碧',
+  丙: '赤',
+  丁: '紫',
+  戊: '黄',
+  己: '褐',
+  庚: '白',
+  辛: '金',
+  壬: '黑',
+  癸: '蓝',
+};
+export const getGanColor = (gan: string) => {
+  return COLORED_SHENGXIAO_MAP[gan];
+};
+
 export { dayjs };

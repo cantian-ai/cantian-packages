@@ -12,6 +12,7 @@ export const modelSchemaToApiSchema = (options: {
   modelSchema;
   deleteFields?: string[];
   addFields?: Record<string, JSONSchema>;
+  requiredNewFields?: string[];
 }) => {
   const { modelSchema, deleteFields } = options;
   const newSchema = structuredClone(modelSchema);
@@ -29,6 +30,12 @@ export const modelSchemaToApiSchema = (options: {
       for (const [field, schema] of Object.entries(options.addFields)) {
         newSchema.properties[field] = schema;
       }
+    }
+    if (options.requiredNewFields?.length) {
+      if (!newSchema.required) {
+        newSchema.required = [];
+      }
+      newSchema.required.push(...options.requiredNewFields);
     }
   }
   return newSchema;

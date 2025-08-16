@@ -6,7 +6,7 @@ import { glob } from 'node:fs/promises';
 import { BaseController } from './BaseController.js';
 import { RestError } from './RestError.js';
 import { app } from './app.js';
-import { CONTROLLER_DIR, openApiPathToExpressPath, REST_BASE_PATH } from './util.js';
+import { CONTROLLER_DIR, INIT_FILE, openApiPathToExpressPath, REST_BASE_PATH } from './util.js';
 
 export const createBizHandler = (c: typeof BaseController) => async (req: Request, res: Response, next) => {
   const controller = new c({
@@ -56,7 +56,13 @@ export const createControllerRouter = async (options: { controllerDir: string; j
     console.log(`Route: ${method.toUpperCase()} ${urlPath}`);
   }
   router.use((err, req, res, next) => {
-    console.error(err);
+    if (err instanceof SyntaxError && !res.headersSent) {
+      res.status(400).json({
+        error: 'Invalid JSON',
+      });
+    } else {
+      console.error(err);
+    }
   });
   return router;
 };
@@ -66,10 +72,15 @@ export const registerControllers = async (options: { jwts: string; scope?: strin
 
   app.use(createTraceHandler());
 
+  if (existsSync(INIT_FILE)) {
+    const { default: init } = await import(INIT_FILE);
+    await init();
+  }
+
   if (existsSync(CONTROLLER_DIR)) {
     const controllerDir = CONTROLLER_DIR;
     const router = await createControllerRouter({
-      controllerDir,
+      controllerDir: CONTROLLER_DIR,
       jwts,
       defaultScope: scope,
     });

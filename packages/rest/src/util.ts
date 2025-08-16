@@ -55,4 +55,5 @@ export function sendRestResponse(error, result, res: Response, successCode = 200
 }
 
 export const CONTROLLER_DIR = process.cwd() + '/dist/controllers/';
+export const INIT_FILE = process.cwd() + '/dist/init.js';
 export const REST_BASE_PATH = '/rest';

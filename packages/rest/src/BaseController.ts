@@ -75,9 +75,8 @@ export class BaseController {
       endpoint: `${this.req.method} ${this.req.path}`,
       data: this.data,
     });
+    const constructor = this.constructor;
     try {
-      const constructor = this.constructor;
-
       await this.authorize();
 
       // Validate data
@@ -100,7 +99,12 @@ export class BaseController {
       }
       return { error };
     } finally {
-      console.log({ message: 'Request finished.', elapsed: Date.now() - startedAt });
+      console.log({
+        method: constructor.method,
+        path: constructor.path,
+        message: 'Request finished.',
+        elapsed: Date.now() - startedAt,
+      });
       this.finallyCallback();
     }
   }
