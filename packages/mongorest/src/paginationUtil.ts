@@ -53,9 +53,11 @@ export const buildFilterFieldSchema = (type: 'string' | 'number') => {
   const schema = {
     type: 'object',
     properties: {
-      $gt: { type: type, description: 'Filter by field greater than the given value.' },
-      $lt: { type: type, description: 'Filter by field less than the given value.' },
-    } as { $gt: JSONSchema; $lt: JSONSchema; $regex?: JSONSchema },
+      $gt: { type, description: 'Filter by field greater than the given value.' },
+      $lt: { type, description: 'Filter by field less than the given value.' },
+      $in: { type: 'array', items: { type }, description: 'Filter by field in the given array.' },
+      $eq: { type, description: 'Filter by field equal to the given value.' },
+    } as { $gt: JSONSchema; $lt: JSONSchema; $in: JSONSchema; $regex?: JSONSchema },
     additionalProperties: false,
   } as const satisfies JSONSchema;
   if (type === 'string') {
@@ -72,7 +74,7 @@ export const buildSearchReulstSchema = (options: {
   deleteFields?: string[];
   addFields?: Record<string, JSONSchema>;
 }) => {
-  return {
+  const schema = {
     type: 'object',
     properties: {
       results: { type: 'array', items: modelSchemaToApiSchema(options) },
@@ -89,7 +91,17 @@ export const buildSearchReulstSchema = (options: {
     required: ['results', 'pagination'],
     additionalProperties: false,
   } as const satisfies JSONSchema;
+  return schema;
 };
+
+export function fixIdField<T extends { id?: any }>(fields: T): Omit<T, 'id'> & { _id?: T['id'] } {
+  const fixedFields = { ...fields };
+  if (fixedFields.id) {
+    (fixedFields as any)._id = fixedFields.id;
+    delete (fixedFields as any).id;
+  }
+  return fixedFields as any;
+}
 
 /**
  * Execute a paginated query with total count in a single database call
@@ -97,25 +109,22 @@ export const buildSearchReulstSchema = (options: {
  * @returns Promise containing results and pagination metadata
  */
 export async function search<T extends OriginModel>(options: SearchOptions<T>): Promise<PaginationResult<T>> {
-  const { collection, filter = {}, sort = [{ field: 'id', order: -1 }], pagination = {} } = options;
+  const { collection, filter = {}, sort = [{ field: 'createdAt', order: -1 }], pagination = {} } = options;
   const limit = pagination.limit ?? 100;
   const offset = pagination.offset ?? 0;
 
-  const sortObject = {};
-  const fixedSort = sort.map((item) => {
-    if (item.field === 'id') {
-      return { field: '_id', order: item.order };
-    }
-    return item;
-  });
-  for (const sortItem of fixedSort) {
+  let sortObject = {};
+  for (const sortItem of sort) {
     sortObject[sortItem.field] = sortItem.order;
   }
+  sortObject = fixIdField(sortObject);
+
+  const fixedFilter = fixIdField(filter);
 
   // Use aggregation to get both results and total count in one query
   const [aggregateResult] = await collection
     .aggregate([
-      { $match: filter },
+      { $match: fixedFilter },
       {
         $facet: {
           results: [{ $sort: sortObject }, { $skip: offset }, { $limit: limit }],

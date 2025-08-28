@@ -193,6 +193,7 @@ interface RelationItem {
   元素?: string;
   柱1?: string;
   柱2?: string;
+  拱?: string;
 }
 
 interface PillarRelation {
@@ -213,37 +214,37 @@ function addToRelation(relationObj: Record<string, RelationItem[]>, relationType
 }
 
 // 检查天干相冲
-function checkGanChong(gan1: string, gan2: string): string | false {
+export function checkGanChong(gan1: string, gan2: string): string | false {
   const ganStr = gan1 + gan2;
   return GAN_CHONG[ganStr] || false;
 }
 
 // 检查天干五合
-function checkGanHe(gan1: string, gan2: string): string | false {
+export function checkGanHe(gan1: string, gan2: string): string | false {
   const ganStr = gan1 + gan2;
   return GAN_WUHE[ganStr] || false;
 }
 
 // 检查地支六冲
-function checkZhiChong(zhi1: string, zhi2: string): string | false {
+export function checkZhiChong(zhi1: string, zhi2: string): string | false {
   const zhiStr = zhi1 + zhi2;
   return ZHI_CHONG[zhiStr] || false;
 }
 
 // 检查地支六合
-function checkZhiHe(zhi1: string, zhi2: string): string | false {
+export function checkZhiHe(zhi1: string, zhi2: string): string | false {
   const zhiStr = zhi1 + zhi2;
   return ZHI_LIUHE[zhiStr] || false;
 }
 
 // 检查地支相害
-function checkZhiHai(zhi1: string, zhi2: string): string | false {
+export function checkZhiHai(zhi1: string, zhi2: string): string | false {
   const zhiStr = zhi1 + zhi2;
   return ZHI_HAI[zhiStr] || false;
 }
 
 // 检查地支相破
-function checkZhiPo(zhi1: string, zhi2: string): string | false {
+export function checkZhiPo(zhi1: string, zhi2: string): string | false {
   const zhiStr = zhi1 + zhi2;
   return ZHI_PO[zhiStr] || false;
 }
@@ -255,7 +256,7 @@ function checkZhiAnhe(zhi1: string, zhi2: string): string | false {
 }
 
 // 检查地支二元刑
-function checkZhiXing(zhi1: string, zhi2: string): string | false {
+export function checkZhiXing(zhi1: string, zhi2: string): string | false {
   const zhiStr = zhi1 + zhi2;
   return ZHI_XING[zhiStr] || false;
 }
@@ -297,7 +298,7 @@ function checkSanhui(zhiSet: Set<string>): string | false {
 }
 
 // 检查地支三刑 - 修复
-function checkSanxing(zhiSet: Set<string>): string | false {
+export function checkSanxing(zhiSet: Set<string>): string | false {
   if (zhiSet.size !== 3) return false;
 
   const zhiArray = Array.from(zhiSet).sort();
@@ -312,7 +313,7 @@ function checkSanxing(zhiSet: Set<string>): string | false {
 }
 
 // 检查半三刑 - 与Python版本完全一致
-function checkHalfSanxing(zhi1: string, zhi2: string): string | false {
+export function checkHalfSanxing(zhi1: string, zhi2: string): string | false {
   const zhiStr = zhi1 + zhi2;
   const zhiStrReverse = zhi2 + zhi1;
 
@@ -523,7 +524,7 @@ export function calculateRelation(zhuArray: Record<string, ZhuData>): Record<str
           relation[zhu1].拱 = {
             柱: zhu2,
             知识点: `${zhu1}${zhu2}拱${gongJiaResult}`,
-            元素: gongJiaResult,
+            拱: gongJiaResult,
           };
         }
       }

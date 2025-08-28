@@ -21,11 +21,23 @@ export const api = async (options: API_OPTIONS) => {
     headers['x-personate-sub'] = options.personateSub;
   }
 
-  const response = await fetch(`${basepath}${path}`, {
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-    method,
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${basepath}${path}`, {
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+      method,
+    });
+  } catch (error) {
+    console.error({
+      message: 'Fetch failed.',
+      options,
+      error,
+    });
+    throw error;
+  }
+
   if (response.ok) {
     const result = (await response.json()) as { code: number; data: any };
     if (result.code !== 1) {

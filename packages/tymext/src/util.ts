@@ -91,3 +91,33 @@ export const getGanColor = (gan: string) => {
 };
 
 export { dayjs };
+
+const SHENG = {
+  木: '火',
+  火: '土',
+  土: '金',
+  金: '水',
+  水: '木',
+};
+
+const KE = {
+  木: '土',
+  土: '水',
+  水: '火',
+  火: '金',
+  金: '木',
+};
+
+export function getWuxingRelation(gan1: string, gan2: string) {
+  if (gan1 === gan2) {
+    return '同';
+  } else if (SHENG[gan1] === gan2) {
+    return '生';
+  } else if (KE[gan1] === gan2) {
+    return '克';
+  } else if (SHENG[gan2] === gan1) {
+    return '被生';
+  } else if (KE[gan2] === gan1) {
+    return '被克';
+  }
+}
