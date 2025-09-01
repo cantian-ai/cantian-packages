@@ -14,7 +14,7 @@ initLog({
   addTags() {
     const traceId = getTraceId();
     if (traceId) {
-      return { traceId };
+      return { traceId, machineId: process.env.CONTAINER_APP_REPLICA_NAME || '-' };
     }
   },
 });

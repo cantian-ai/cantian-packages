@@ -103,6 +103,18 @@ export function fixIdField<T extends { id?: any }>(fields: T): Omit<T, 'id'> & {
   return fixedFields as any;
 }
 
+export function fixRegex(filter: Record<string, any>) {
+  const fixedFilter = { ...filter };
+  for (const key in fixedFilter) {
+    for (const op of Object.keys(fixedFilter[key])) {
+      if (op === '$regex') {
+        fixedFilter[key][op] = new RegExp(escapeRegexExceptDot(fixedFilter[key][op]), 'i');
+      }
+    }
+  }
+  return fixedFilter;
+}
+
 /**
  * Execute a paginated query with total count in a single database call
  * @param options - Query options containing collection, pagination, query, and sort
@@ -119,7 +131,7 @@ export async function search<T extends OriginModel>(options: SearchOptions<T>): 
   }
   sortObject = fixIdField(sortObject);
 
-  const fixedFilter = fixIdField(filter);
+  const fixedFilter = fixRegex(fixIdField(filter));
 
   // Use aggregation to get both results and total count in one query
   const [aggregateResult] = await collection
@@ -145,4 +157,18 @@ export async function search<T extends OriginModel>(options: SearchOptions<T>): 
       total: total,
     },
   };
+}
+
+// $regex只支持点号
+function escapeRegexExceptDot(str) {
+  // 先替换反斜杠 + 点号 为一个占位符
+  str = str.replace(/\\\./g, '__LITERAL_DOT__');
+
+  // 转义除了点号以外的所有正则特殊字符
+  str = str.replace(/([*+?^${}()|[\]\\])/g, '\\$&');
+
+  // 再把占位符替换回字面量点号
+  str = str.replace(/__LITERAL_DOT__/g, '\\.');
+
+  return str;
 }
