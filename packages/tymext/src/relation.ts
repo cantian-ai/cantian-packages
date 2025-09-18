@@ -182,12 +182,12 @@ const ZHI_HALF_SANXING = {
 const ZHI_ORDER = ['寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥', '子', '丑'];
 
 // 类型定义
-interface ZhuData {
+export interface ZhuData {
   天干: string;
   地支: string;
 }
 
-interface RelationItem {
+export interface RelationItem {
   柱: string;
   知识点: string;
   元素?: string;
@@ -196,7 +196,7 @@ interface RelationItem {
   拱?: string;
 }
 
-interface PillarRelation {
+export interface PillarRelation {
   天干: Record<string, RelationItem[]>;
   地支: Record<string, RelationItem[]>;
   拱?: RelationItem;

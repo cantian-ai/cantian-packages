@@ -1,6 +1,6 @@
 {
   "name": "cantian-mongodb",
-  "version": "0.0.27",
+  "version": "0.0.33",
   "type": "module",
   "exports": {
     ".": "./dist/index.js",

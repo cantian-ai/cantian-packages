@@ -45,8 +45,7 @@ export const SORT_SCHEMA = {
     required: ['field', 'order'],
     additionalProperties: false,
   },
-  default: [{ field: 'id', order: -1 }],
-  description: 'The sort order. Default is `[{id: -1}]` which means sort by `id` in descending order.',
+  default: [{ field: 'createdAt', order: -1 }],
 } as const satisfies JSONSchema;
 
 export const buildFilterFieldSchema = (type: 'string' | 'number') => {

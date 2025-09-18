@@ -3,8 +3,8 @@ import 'express';
 export type Auth = {
   sub: string;
   name: string;
-  aud: string;
   scopes?: string[];
+  client_id?: string;
 };
 
 declare module 'express-serve-static-core' {

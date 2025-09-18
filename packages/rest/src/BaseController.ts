@@ -32,6 +32,7 @@ export class BaseController {
   pathParams?: Record<string, string>;
   rawBody?: Buffer;
   headers?: IncomingHttpHeaders;
+  source?: string;
   req: Request;
   res: Response;
 
@@ -51,7 +52,6 @@ export class BaseController {
   }
 
   constructor(event: { req: Request; res: Response }) {
-    const constructor = this.constructor;
     this.data = event.req.body;
     this.pathParams = event.req.params;
     this.rawBody = event.req.rawBody;
@@ -76,6 +76,7 @@ export class BaseController {
       data: this.data,
     });
     const constructor = this.constructor;
+    let hasError = false;
     try {
       await this.authorize();
 
@@ -94,16 +95,20 @@ export class BaseController {
       await this.sendResponse(undefined, result);
       return { result };
     } catch (error) {
+      hasError = true;
       if (!this.res.headersSent) {
         await this.sendResponse(error);
       }
       return { error };
     } finally {
       console.log({
+        hasError,
         method: constructor.method,
         path: constructor.path,
         message: 'Request finished.',
         elapsed: Date.now() - startedAt,
+        source: this.source,
+        sub: this.auth?.sub,
       });
       this.finallyCallback();
     }
@@ -124,6 +129,7 @@ export class BaseController {
   }
 
   async authorize() {
+    this.source = this.req.get('x-source');
     if (this.constructor.isPublic) {
       return;
     }
@@ -149,9 +155,9 @@ export class BaseController {
       this.auth = {
         sub: payload.sub as string,
         name: payload.name as string,
-        aud: payload.aud as string,
         scopes,
       };
+      this.source = payload.client_id as string;
 
       if (scopes?.includes('*:admin')) {
         this.auth.sub = (this.req.headers['x-personate-sub'] as string) || this.auth.sub;

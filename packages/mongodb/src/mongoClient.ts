@@ -1,11 +1,12 @@
 import { JSONSchema } from 'json-schema-to-ts';
-import { Collection, CreateIndexesOptions, MongoClient, ObjectId } from 'mongodb';
+import { Collection, CreateIndexesOptions, MongoClient, ObjectId, SearchIndexDescription } from 'mongodb';
 
 export type Index = { key: any; options?: CreateIndexesOptions };
 
 export type Model = {
   schema: JSONSchema;
   indexes?: Index[];
+  searchIndexes?: SearchIndexDescription[];
   collection: Collection;
 };
 

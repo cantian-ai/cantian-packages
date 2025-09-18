@@ -78,7 +78,6 @@ export const registerControllers = async (options: { jwts: string; scope?: strin
   }
 
   if (existsSync(CONTROLLER_DIR)) {
-    const controllerDir = CONTROLLER_DIR;
     const router = await createControllerRouter({
       controllerDir: CONTROLLER_DIR,
       jwts,

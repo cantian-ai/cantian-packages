@@ -1,5 +1,6 @@
 import { JSONSchema } from 'json-schema-to-ts';
-import { CreateIndexesOptions, Db, IndexSpecification } from 'mongodb';
+import { Collection, CreateIndexesOptions, Db, IndexSpecification, SearchIndexDescription } from 'mongodb';
+import assert from 'node:assert';
 import { Model, mongoClient } from './mongoClient.js';
 
 export type Indexes = { key: any; options?: CreateIndexesOptions; vectorOptions?: Record<string, any> }[];
@@ -27,6 +28,46 @@ async function migrateSchema(db: Db, collectionName: string, schema: JSONSchema)
       validator: { $jsonSchema: schema },
     });
     console.info(`Create collection '${collectionName}' successfully with schema: ${JSON.stringify(schema)}`);
+  }
+}
+
+type SearchIndex = { name: string; definition: SearchIndexDescription };
+async function migrateSearch(collection: Collection, indexes: SearchIndexDescription[]) {
+  const remoteIndexMap: Record<string, SearchIndex> = {};
+  const existingIndexes = collection.listSearchIndexes();
+  for await (const existingIndex of existingIndexes) {
+    remoteIndexMap[existingIndex.name] = existingIndex as SearchIndex;
+  }
+
+  const localIndexMap: Record<string, SearchIndex> = {};
+  for (const localIndex of indexes) {
+    if (!localIndex.name) {
+      throw new Error(`Index name is required when migrating search indexes for ${collection.collectionName}.`);
+    }
+    localIndexMap[localIndex.name!] = localIndex as SearchIndex;
+  }
+
+  // Remove remote indexes that are not in the local indexes
+  for (const remoteIndex of Object.values(remoteIndexMap)) {
+    if (!localIndexMap[remoteIndex.name]) {
+      await collection.dropSearchIndex(remoteIndex.name);
+      console.info(`Remove the search index ${remoteIndex.name} for ${collection.collectionName} successfully.`);
+    }
+  }
+
+  // Create local indexes that are not in the remote indexes
+  for (const localIndex of indexes) {
+    const remoteIndex = remoteIndexMap[localIndex.name!];
+    if (!remoteIndex) {
+      await collection.createSearchIndex(localIndex);
+      console.info(`Create the search index ${localIndex.name} for ${collection.collectionName} successfully.`, localIndex);
+    } else if (!isSameDefinition((remoteIndex as any).latestDefinition, localIndex.definition)) {
+      throw new Error(
+        `Give a new name to the search index ${localIndex.name} for ${collection.collectionName} to avoid conflict.`,
+      );
+    } else {
+      console.info(`The search index ${localIndex.name} for ${collection.collectionName} is already up to date.`);
+    }
   }
 }
 
@@ -60,6 +101,10 @@ export const migrate = async (db: Db, model: Model) => {
       console.info(`Removed an index from ${collectionName} successfully.`, existingIndex);
     }
   }
+
+  if (model.searchIndexes?.length) {
+    await migrateSearch(model.collection, model.searchIndexes);
+  }
 };
 
 export type MigrateRemoteEvent = {
@@ -78,3 +123,26 @@ export const migrateRemoteHandler = async (event: MigrateRemoteEvent) => {
     });
   }
 };
+
+function pickDefinedFields(def: any, template: any): any {
+  if (Array.isArray(template)) {
+    return template.map((t, i) => pickDefinedFields(def?.[i], t));
+  } else if (template && typeof template === 'object') {
+    const result: any = {};
+    for (const key of Object.keys(template)) {
+      result[key] = pickDefinedFields(def?.[key], template[key]);
+    }
+    return result;
+  }
+  return def;
+}
+
+function isSameDefinition(remoteDef: any, localDef: any): boolean {
+  const filteredRemote = pickDefinedFields(remoteDef, localDef);
+  try {
+    assert.deepStrictEqual(filteredRemote, localDef);
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "cantian-api",
-  "version": "0.0.26",
+  "version": "0.0.31",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"
@@ -12,6 +12,7 @@
     "prepublishOnly": "rm -rf dist && tsc"
   },
   "dependencies": {
-    "cantian-als": "*"
+    "cantian-als": "*",
+    "p-limit": "^7.1.1"
   }
 }
