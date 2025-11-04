@@ -6,13 +6,13 @@ import { inspect } from 'node:util';
 
 inspect.defaultOptions.depth = 12;
 
-const { JWTS, SCOPE, PORT = 3001, OPENAPI_SPEC_PATH = 'tmp/openapi.json' } = process.env;
+const { JWKS, ADMIN_KID, PORT = 3001, OPENAPI_SPEC_PATH = 'tmp/openapi.json' } = process.env;
 
-if (!JWTS) {
-  throw new Error('The env JWTS is undefined.');
+if (!JWKS) {
+  throw new Error('The env JWKS or ADMIN_ID is undefined.');
 }
 
-const app = await registerControllers({ jwts: JWTS, scope: SCOPE });
+const app = await registerControllers({ jwks: JWKS });
 
 const openapiSpecAbsolutePath = `${process.cwd()}/${OPENAPI_SPEC_PATH}`;
 if (existsSync(openapiSpecAbsolutePath)) {

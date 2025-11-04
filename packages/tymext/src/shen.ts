@@ -1244,8 +1244,14 @@ const grabGejiaosha = (dayZhi: string, hourZhi: string) => {
   }
 };
 
-export const getShen = (sizhu: string, gender: 1 | 0, extraGanzhiList: string[] = []) => {
-  const bazi = sizhu.replaceAll(' ', '');
+/**
+ * 获取任意柱的神煞
+ * @param bazi 八字不带空格
+ * @param gender 性别
+ * @param zhu 柱干支
+ * @param zhuIndex 柱索引，0-3为年柱-时柱，4-8为大运-流时
+ */
+export const getShenByZhu = (bazi: string, gender: 1 | 0, zhu: string, zhuIndex: number) => {
   const ganzhiList = [bazi.slice(0, 2), bazi.slice(2, 4), bazi.slice(4, 6), bazi.slice(6, 8)];
   const yearGanzhi = ganzhiList[0];
   const monthGanzhi = ganzhiList[1];
@@ -1261,113 +1267,116 @@ export const getShen = (sizhu: string, gender: 1 | 0, extraGanzhiList: string[] 
   const dayXun = XUN[dayGanzhi];
   const yearNayinWuxing = NAYIN_WUXING[yearGanzhi];
 
-  // 分别放年、月、日、时、额外柱的神煞列表
-  const gods: Set<undefined | string>[] = [new Set(), new Set(), new Set(), new Set()];
-  for (let i = 0; i < extraGanzhiList?.length; i++) {
-    gods.push(new Set());
-    ganzhiList.push(extraGanzhiList[i]);
-  }
+  const gods = new Set<undefined | string>();
 
   // 各柱都需要查的神煞
-  for (let i = 0; i < gods.length; i++) {
-    gods[i].add(grabTianyiguiren(dayGan, yearGan, ganzhiList[i][1]));
-    gods[i].add(grabTiandeguiren(monthZhi, ganzhiList[i]));
-    gods[i].add(grabYuedeguiren(monthZhi, ganzhiList[i]));
-    gods[i].add(grabTiandehe(monthZhi, ganzhiList[i]));
-    gods[i].add(grabYuedehe(monthZhi, ganzhiList[i][0]));
-    gods[i].add(grabLushen(dayGan, ganzhiList[i][1]));
-    gods[i].add(grabTaijiguiren(dayGan, yearGan, ganzhiList[i][1]));
-    gods[i].add(grabGuoyinguiren(dayGan, yearGan, ganzhiList[i][1]));
-    gods[i].add(grabWenchangguiren(dayGan, yearGan, ganzhiList[i][1]));
-    gods[i].add(grabJinyu(yearGan, dayGan, ganzhiList[i][1]));
-    gods[i].add(grabYangren(dayGan, ganzhiList[i][1]));
-    gods[i].add(grabFeiren(dayGan, ganzhiList[i][1]));
-    gods[i].add(grabXueren(monthZhi, ganzhiList[i][1]));
-    gods[i].add(grabLiuxia(dayGan, ganzhiList[i][1]));
-    gods[i].add(grabHongyansha(dayGan, ganzhiList[i][1]));
-    gods[i].add(grabFuxingguiren(yearGan, dayGan, ganzhiList[i][1]));
-    gods[i].add(grabDexiuguiren(monthZhi, ganzhiList[i][0]));
-    gods[i].add(grabTianchuguiren(yearGan, dayGan, ganzhiList[i][1]));
-    gods[i].add(grabTianguanguiren(dayGan, yearGan, ganzhiList[i][1]));
+  gods.add(grabTianyiguiren(dayGan, yearGan, zhu[1]));
+  gods.add(grabTiandeguiren(monthZhi, zhu));
+  gods.add(grabYuedeguiren(monthZhi, zhu));
+  gods.add(grabTiandehe(monthZhi, zhu));
+  gods.add(grabYuedehe(monthZhi, zhu[0]));
+  gods.add(grabLushen(dayGan, zhu[1]));
+  gods.add(grabTaijiguiren(dayGan, yearGan, zhu[1]));
+  gods.add(grabGuoyinguiren(dayGan, yearGan, zhu[1]));
+  gods.add(grabWenchangguiren(dayGan, yearGan, zhu[1]));
+  gods.add(grabJinyu(yearGan, dayGan, zhu[1]));
+  gods.add(grabYangren(dayGan, zhu[1]));
+  gods.add(grabFeiren(dayGan, zhu[1]));
+  gods.add(grabXueren(monthZhi, zhu[1]));
+  gods.add(grabLiuxia(dayGan, zhu[1]));
+  gods.add(grabHongyansha(dayGan, zhu[1]));
+  gods.add(grabFuxingguiren(yearGan, dayGan, zhu[1]));
+  gods.add(grabDexiuguiren(monthZhi, zhu[0]));
+  gods.add(grabTianchuguiren(yearGan, dayGan, zhu[1]));
+  gods.add(grabTianguanguiren(dayGan, yearGan, zhu[1]));
+
+  // 以年柱为锚
+  if (zhuIndex !== 0) {
+    gods.add(grabXuetang(yearNayinWuxing, dayGan, zhu));
+    gods.add(grabCiguan(yearNayinWuxing, dayGan, zhu));
+    gods.add(grabZaisha(yearZhi, zhu[1]));
+    gods.add(grabGuchen(yearZhi, zhu[1]));
+    gods.add(grabGuaxiu(yearZhi, zhu[1]));
+    gods.add(grabHongluan(yearZhi, zhu[1]));
+    gods.add(grabTianxi(yearZhi, zhu[1]));
+    gods.add(grabGoujiaosha(yearZhi, zhu[1]));
+    gods.add(grabYuanchen(GAN_YINYANG[yearGan], yearZhi, gender, zhu[1]));
+    gods.add(grabSangmen(yearZhi, zhu[1]));
+    gods.add(grabDiaoke(yearZhi, zhu[1]));
+    gods.add(grabPima(yearZhi, zhu[1]));
+    gods.add(grabPitou(yearZhi, zhu[1]));
+    gods.add(grabLiuer(yearZhi, zhu[1]));
+
+    // 下边神煞同时也会以日柱为锚
+    gods.add(grabJiangxing(yearZhi, zhu[1]));
+    gods.add(grabYima(yearZhi, zhu[1]));
+    gods.add(grabYima(yearZhi, zhu[1]));
+    gods.add(grabHuagai(yearZhi, zhu[1]));
+    gods.add(grabWangsheng(yearZhi, zhu[1]));
+    gods.add(grabJiesha(yearZhi, zhu[1]));
+    gods.add(grabKongwang(yearXun, zhu[1]));
+    gods.add(grabTaohua(yearZhi, zhu[1]));
+    gods.add(grabTianluodiwang1(yearZhi, zhu[1]));
   }
 
-  // 不在年柱的神煞，通常以年柱为锚
-  for (let i = 1; i < gods.length; i++) {
-    gods[i].add(grabXuetang(yearNayinWuxing, dayGan, ganzhiList[i]));
-    gods[i].add(grabCiguan(yearNayinWuxing, dayGan, ganzhiList[i]));
-    gods[i].add(grabZaisha(yearZhi, ganzhiList[i][1]));
-    gods[i].add(grabGuchen(yearZhi, ganzhiList[i][1]));
-    gods[i].add(grabGuaxiu(yearZhi, ganzhiList[i][1]));
-    gods[i].add(grabHongluan(yearZhi, ganzhiList[i][1]));
-    gods[i].add(grabTianxi(yearZhi, ganzhiList[i][1]));
-    gods[i].add(grabGoujiaosha(yearZhi, ganzhiList[i][1]));
-    gods[i].add(grabYuanchen(GAN_YINYANG[yearGan], yearZhi, gender, ganzhiList[i][1]));
-    gods[i].add(grabSangmen(yearZhi, ganzhiList[i][1]));
-    gods[i].add(grabDiaoke(yearZhi, ganzhiList[i][1]));
-    gods[i].add(grabPima(yearZhi, ganzhiList[i][1]));
-    gods[i].add(grabPitou(yearZhi, ganzhiList[i][1]));
-    gods[i].add(grabLiuer(yearZhi, ganzhiList[i][1]));
+  // 以月柱为锚
+  if (zhuIndex !== 1) {
+    gods.add(grabTianyi(monthZhi, zhu[1]));
   }
 
-  // 不在月柱的神煞，通常以月柱为锚
-  for (let i = 0; i < gods.length; i++) {
-    if (i !== 1) {
-      gods[i].add(grabTianyi(monthZhi, ganzhiList[i][1]));
-    }
+  // 日柱为锚
+  if (zhuIndex !== 2) {
+    gods.add(grabJiangxing(dayZhi, zhu[1]));
+    gods.add(grabYima(dayZhi, zhu[1]));
+    gods.add(grabYima(dayZhi, zhu[1]));
+    gods.add(grabHuagai(dayZhi, zhu[1]));
+    gods.add(grabWangsheng(dayZhi, zhu[1]));
+    gods.add(grabJiesha(dayZhi, zhu[1]));
+    gods.add(grabKongwang(dayXun, zhu[1]));
+    gods.add(grabTaohua(dayZhi, zhu[1]));
+    gods.add(grabTianluodiwang1(dayZhi, zhu[1]));
   }
 
-  // 以年/日柱为锚看其它柱的神煞
-  for (let i = 0; i < gods.length; i++) {
-    if (i !== 0) {
-      gods[i].add(grabJiangxing(yearZhi, ganzhiList[i][1]));
-      gods[i].add(grabYima(yearZhi, ganzhiList[i][1]));
-      gods[i].add(grabYima(yearZhi, ganzhiList[i][1]));
-      gods[i].add(grabHuagai(yearZhi, ganzhiList[i][1]));
-      gods[i].add(grabWangsheng(yearZhi, ganzhiList[i][1]));
-      gods[i].add(grabJiesha(yearZhi, ganzhiList[i][1]));
-      gods[i].add(grabKongwang(yearXun, ganzhiList[i][1]));
-      gods[i].add(grabTaohua(yearZhi, ganzhiList[i][1]));
-      gods[i].add(grabTianluodiwang1(yearZhi, ganzhiList[i][1]));
-    }
-    if (i !== 2) {
-      gods[i].add(grabJiangxing(dayZhi, ganzhiList[i][1]));
-      gods[i].add(grabYima(dayZhi, ganzhiList[i][1]));
-      gods[i].add(grabYima(dayZhi, ganzhiList[i][1]));
-      gods[i].add(grabHuagai(dayZhi, ganzhiList[i][1]));
-      gods[i].add(grabWangsheng(dayZhi, ganzhiList[i][1]));
-      gods[i].add(grabJiesha(dayZhi, ganzhiList[i][1]));
-      gods[i].add(grabKongwang(dayXun, ganzhiList[i][1]));
-      gods[i].add(grabTaohua(dayZhi, ganzhiList[i][1]));
-      gods[i].add(grabTianluodiwang1(dayZhi, ganzhiList[i][1]));
-    }
+  // 只在日柱
+  if (zhuIndex === 2) {
+    gods.add(grabTiansheri(monthZhi, dayGanzhi));
+    gods.add(grabSanqiguiren(bazi));
+    gods.add(grabSifeiri(monthZhi, dayGanzhi));
+    gods.add(grabTianluodiwang2(yearNayinWuxing, dayZhi));
+    gods.add(grabYinchayangcuo(dayGanzhi));
+    gods.add(grabKuigang(dayGanzhi));
+    gods.add(grabGuluansha(dayGanzhi));
+    gods.add(grabShiedabai(dayGanzhi));
+    gods.add(grabJinshen(dayGanzhi));
+    gods.add(grabTianzhuan(monthZhi, dayGanzhi));
+    gods.add(grabDizhuan(monthZhi, dayGanzhi));
+    gods.add(grabShilingri(dayGanzhi));
+    gods.add(grabLiuxiuri(dayGanzhi));
+    gods.add(grabBazhuan(dayGanzhi));
+    gods.add(grabJiuchou(dayGanzhi));
+    gods.add(grabTongzisha(monthZhi, yearNayinWuxing, dayZhi));
+    gods.add(grabGonglu(dayGanzhi, hourGanzhi));
+    gods.add(grabJinshenx(dayGanzhi));
   }
 
-  gods[2].add(grabTiansheri(monthZhi, dayGanzhi));
-  gods[2].add(grabSanqiguiren(bazi));
-  gods[2].add(grabSifeiri(monthZhi, dayGanzhi));
-  gods[2].add(grabTianluodiwang2(yearNayinWuxing, dayZhi));
-  gods[2].add(grabYinchayangcuo(dayGanzhi));
-  gods[2].add(grabKuigang(dayGanzhi));
-  gods[2].add(grabGuluansha(dayGanzhi));
-  gods[2].add(grabShiedabai(dayGanzhi));
-  gods[2].add(grabJinshen(dayGanzhi));
-  gods[3].add(grabJinshen(hourGanzhi));
-  gods[2].add(grabTianzhuan(monthZhi, dayGanzhi));
-  gods[2].add(grabDizhuan(monthZhi, dayGanzhi));
-  gods[2].add(grabShilingri(dayGanzhi));
-  gods[2].add(grabLiuxiuri(dayGanzhi));
-  gods[2].add(grabBazhuan(dayGanzhi));
-  gods[2].add(grabJiuchou(dayGanzhi));
-  gods[2].add(grabTongzisha(monthZhi, yearNayinWuxing, dayZhi));
-  gods[3].add(grabTongzisha(monthZhi, yearNayinWuxing, hourZhi));
-  gods[2].add(grabGonglu(dayGanzhi, hourGanzhi));
-  gods[2].add(grabJinshenx(dayGanzhi));
-  gods[3].add(grabGejiaosha(dayZhi, hourZhi));
+  // 只在时柱
+  if (zhuIndex === 3) {
+    gods.add(grabJinshen(hourGanzhi));
+    gods.add(grabTongzisha(monthZhi, yearNayinWuxing, hourZhi));
+    gods.add(grabGejiaosha(dayZhi, hourZhi));
+  }
 
+  gods.delete(undefined);
+  const result = Array.from(gods) as string[];
+  return result;
+};
+
+export const getShen = (sizhu: string, gender: 1 | 0, extraGanzhiList: string[] = []) => {
+  const bazi = sizhu.replaceAll(' ', '');
+  const allZhu = [bazi.slice(0, 2), bazi.slice(2, 4), bazi.slice(4, 6), bazi.slice(6, 8), ...extraGanzhiList];
   const results: string[][] = [];
-  for (const item of gods) {
-    item.delete(undefined);
-    results.push(Array.from(item) as string[]);
+  for (let i = 0; i < 4 + extraGanzhiList.length; i++) {
+    results.push(getShenByZhu(bazi, gender, allZhu[i], i));
   }
   return results;
 };

@@ -30,6 +30,10 @@ export class RestError {
     return new RestError(409, errorMessage || 'Conflict.', errorData);
   }
 
+  static paymentRequired(errorMessage?: string, errorData?: ErrorResponseBody['errorData']) {
+    return new RestError(402, errorMessage || 'Payment required.', errorData);
+  }
+
   static tooManyRequests(errorMessage?: string, errorData?: ErrorResponseBody['errorData']) {
     return new RestError(429, errorMessage || 'Too many requests.', errorData);
   }

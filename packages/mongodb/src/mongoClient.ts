@@ -1,5 +1,6 @@
 import { JSONSchema } from 'json-schema-to-ts';
-import { Collection, CreateIndexesOptions, MongoClient, ObjectId, SearchIndexDescription } from 'mongodb';
+import { Collection, CreateIndexesOptions, MongoClient, SearchIndexDescription } from 'mongodb';
+import { customAlphabet } from 'nanoid';
 
 export type Index = { key: any; options?: CreateIndexesOptions };
 
@@ -10,13 +11,16 @@ export type Model = {
   collection: Collection;
 };
 
+const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz';
+export const nanoid = customAlphabet(alphabet, 12);
+
 export const mongoClient = new MongoClient(process.env.MONGODB_URL, {
   connectTimeoutMS: 3000,
   socketTimeoutMS: 90000,
   rejectUnauthorized: false,
   pkFactory: {
-    createPk: () => new ObjectId().toHexString(),
+    createPk: () => nanoid(),
   },
 });
 
-export const db = mongoClient.db(process.env.MONGODB_DB, { ignoreUndefined: true });
+export const db = mongoClient.db(process.env.MONGODB_DB || process.env.SERVICE_NAME, { ignoreUndefined: true });

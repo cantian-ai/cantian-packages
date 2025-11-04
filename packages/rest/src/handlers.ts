@@ -24,8 +24,8 @@ export const createBizHandler = (c: typeof BaseController) => async (req: Reques
   next();
 };
 
-export const createControllerRouter = async (options: { controllerDir: string; jwts: string; defaultScope?: string }) => {
-  const { controllerDir, jwts, defaultScope } = options;
+export const createControllerRouter = async (options: { controllerDir: string; jwks: string }) => {
+  const { controllerDir, jwks } = options;
   const allowedMethods = ['get', 'post', 'patch', 'delete'] as const;
   const controllerFiles = glob('**/*.js', { cwd: controllerDir });
   const router = express.Router();
@@ -38,8 +38,7 @@ export const createControllerRouter = async (options: { controllerDir: string; j
     }),
   );
 
-  BaseController.initBase({ jwts });
-  BaseController.scope = defaultScope;
+  BaseController.initBase({ jwks });
 
   for await (const controllerFile of controllerFiles) {
     const parts = controllerFile.split('/');
@@ -67,8 +66,8 @@ export const createControllerRouter = async (options: { controllerDir: string; j
   return router;
 };
 
-export const registerControllers = async (options: { jwts: string; scope?: string }) => {
-  const { jwts, scope } = options;
+export const registerControllers = async (options: { jwks: string }) => {
+  const { jwks } = options;
 
   app.use(createTraceHandler());
 
@@ -80,8 +79,7 @@ export const registerControllers = async (options: { jwts: string; scope?: strin
   if (existsSync(CONTROLLER_DIR)) {
     const router = await createControllerRouter({
       controllerDir: CONTROLLER_DIR,
-      jwts,
-      defaultScope: scope,
+      jwks,
     });
     app.use(REST_BASE_PATH, router);
   }

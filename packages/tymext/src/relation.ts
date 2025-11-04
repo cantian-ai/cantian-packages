@@ -433,7 +433,6 @@ export function calculateRelation(zhuArray: Record<string, ZhuData>): Record<str
         addToRelation(relation[zhu1].地支, '破', {
           柱: zhu2,
           知识点: `${data1.地支}${data2.地支}相${zhiPoResult}`,
-          元素: zhiPoResult,
         });
       }
 
@@ -608,4 +607,130 @@ export function calculateRelation(zhuArray: Record<string, ZhuData>): Record<str
   }
 
   return relation;
+}
+
+const PILLAR_NAMES = ['年柱', '月柱', '日柱', '时柱', '大运', '流年', '流月', '流日', '流时'];
+type Relation = {
+  关系: string; // <干支位置><关系>，例如天干冲
+  关联柱: string[];
+  描述: string;
+};
+export function appendRelation(preZhuArray: string[], newZhu: string): Relation[] {
+  const relations: Relation[] = [];
+  const newZhuName = PILLAR_NAMES[preZhuArray.length];
+  const newGan = newZhu[0];
+  const newZhi = newZhu[1];
+
+  // 遍历每个柱
+  // for (const [zhu1, data1] of Object.entries(zhuArray)) {
+  for (let i = 0; i < preZhuArray.length; i++) {
+    const preZhu1 = preZhuArray[i];
+    const preZhuName1 = PILLAR_NAMES[i];
+    const preGan1 = preZhu1[0];
+    const preZhi1 = preZhu1[1];
+    const 关联柱 = [preZhuName1, newZhuName];
+    const ganPair = `${preGan1}${newGan}`;
+    const zhiPair = `${preZhi1}${newZhi}`;
+
+    const ganChong = GAN_CHONG[ganPair];
+    if (ganChong) {
+      relations.push({ 关系: `天干${ganChong}`, 关联柱: [preZhuName1, newZhuName], 描述: `${preGan1}${newGan}相${ganChong}` });
+    }
+
+    const zhiChong = ZHI_CHONG[zhiPair];
+    if (zhiChong) {
+      relations.push({ 关系: '地支冲', 关联柱, 描述: `${preZhi1}${newZhi}相冲` });
+    }
+
+    if (ganChong && zhiChong) {
+      relations.push({ 关系: '双冲', 关联柱, 描述: `双冲` });
+    }
+
+    const ganheWuxing = GAN_WUHE[ganPair];
+    if (ganheWuxing) {
+      relations.push({
+        关系: `天干合`,
+        关联柱: [preZhuName1, newZhuName],
+        描述: `${preGan1}${newGan}合${ganheWuxing}`,
+      });
+    }
+
+    const zhiheWuxing = ZHI_LIUHE[zhiPair];
+    if (zhiheWuxing) {
+      relations.push({ 关系: `地支合`, 关联柱, 描述: `${preZhi1}${newZhi}合${zhiheWuxing}` });
+    }
+
+    if (ganheWuxing && zhiheWuxing) {
+      relations.push({ 关系: '双合', 关联柱, 描述: `双合` });
+    }
+
+    if (ZHI_HAI[zhiPair]) {
+      relations.push({ 关系: `地支害`, 关联柱, 描述: `${preZhi1}${newZhi}相害` });
+    }
+
+    if (ZHI_PO[zhiPair]) {
+      relations.push({ 关系: `地支破`, 关联柱, 描述: `${preZhi1}${newZhi}相破` });
+    }
+
+    if (ZHI_ANHE[zhiPair]) {
+      relations.push({ 关系: `地支暗合`, 关联柱, 描述: `${preZhi1}${newZhi}暗合` });
+    }
+
+    if (ZHI_XING[zhiPair]) {
+      relations.push({ 关系: '地支刑', 关联柱, 描述: `${preZhi1}${newZhi}相刑` });
+    }
+
+    if (preZhu1 === newZhu) {
+      relations.push({ 关系: '伏吟', 关联柱, 描述: `伏吟` });
+    }
+
+    let sanheFlag = false,
+      sanxingFlag = false;
+    for (let j = i + 1; j < preZhuArray.length; j++) {
+      const preZhu2 = preZhuArray[j];
+      const preZhi2 = preZhu2[1];
+      const preZhuName2 = PILLAR_NAMES[j];
+      const 关联柱 = [preZhuName1, preZhuName2, newZhuName];
+
+      const sanheResult = checkSanhe(new Set([preZhi1, preZhi2, newZhi]));
+      if (sanheResult) {
+        relations.push({ 关系: `地支三合`, 关联柱, 描述: `${preZhi1}${preZhi2}${newZhi}三合${sanheResult}` });
+        sanheFlag = true;
+      }
+
+      const sanhuiResult = checkSanhui(new Set([preZhi1, preZhi2, newZhi]));
+      if (sanhuiResult) {
+        relations.push({ 关系: `地支三会`, 关联柱, 描述: `${preZhi1}${preZhi2}${newZhi}三会${sanhuiResult}` });
+      }
+
+      const sanxingResult = checkSanxing(new Set([preZhi1, preZhi2, newZhi]));
+      if (sanxingResult) {
+        relations.push({ 关系: `地支三刑`, 关联柱, 描述: `${preZhi1}${preZhi2}${newZhi}三刑` });
+        sanxingFlag = true;
+      }
+    }
+
+    if (preGan1 === newGan) {
+      const gongjiaResult = checkGongJia(preGan1, preZhi1, newGan, newZhi);
+      if (gongjiaResult) {
+        relations.push({ 关系: '拱', 关联柱, 描述: `拱${gongjiaResult}` });
+      }
+    }
+
+    if (!sanheFlag) {
+      const halfSanheResult = checkHalfSanhe(preZhi1, newZhi);
+      if (halfSanheResult) {
+        relations.push({ 关系: '地支半合', 关联柱, 描述: `${preZhi1}${newZhi}半合${halfSanheResult}` });
+      }
+    }
+
+    if (!sanxingFlag) {
+      const halfSanxingResult = checkHalfSanxing(preZhi1, newZhi);
+      if (halfSanxingResult) {
+        relations.push({ 关系: '地支刑', 关联柱, 描述: `${preZhi1}${newZhi}刑` });
+      }
+    }
+  }
+
+  return relations;
 }

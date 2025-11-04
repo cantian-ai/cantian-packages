@@ -1,11 +1,15 @@
 import { JSONSchema } from 'json-schema-to-ts';
-import { Collection, CreateIndexesOptions, Db, IndexSpecification, SearchIndexDescription } from 'mongodb';
+import { Collection, CreateIndexesOptions, Db, SearchIndexDescription } from 'mongodb';
 import assert from 'node:assert';
-import { Model, mongoClient } from './mongoClient.js';
+import { Index, Model, mongoClient } from './mongoClient.js';
 
 export type Indexes = { key: any; options?: CreateIndexesOptions; vectorOptions?: Record<string, any> }[];
 
-export function generateIndexName(key: IndexSpecification) {
+export function generateIndexName(index: Index) {
+  if (index.options?.name) {
+    return index.options.name;
+  }
+  const key = index.key;
   return Object.entries(key)
     .map(([k, v]) => `${k}_${v}`)
     .join('_');
@@ -77,7 +81,7 @@ export const migrate = async (db: Db, model: Model) => {
 
   if (model.indexes?.length) {
     for (const index of model.indexes) {
-      const indexOption = { ...index.options, name: generateIndexName(index.key) };
+      const indexOption = { ...index.options, name: generateIndexName(index) };
       await model.collection.createIndex(index.key, indexOption);
       console.info(`Create a general index for ${collectionName} successfully.`, indexOption);
     }
@@ -94,7 +98,7 @@ export const migrate = async (db: Db, model: Model) => {
       continue;
     }
     const inUsed = model.indexes?.find((v) => {
-      return existingIndex.name === generateIndexName(v.key);
+      return existingIndex.name === generateIndexName(v);
     });
     if (!inUsed) {
       await model.collection.dropIndex(existingIndex.name);

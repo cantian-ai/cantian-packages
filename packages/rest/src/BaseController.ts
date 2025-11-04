@@ -3,9 +3,16 @@ import { Request, Response } from 'express';
 import { createLocalJWKSet, jwtVerify } from 'jose';
 import { JSONSchema } from 'json-schema-to-ts';
 import { IncomingHttpHeaders } from 'node:http';
+import { rateLimit } from './rateLimit.js';
 import { RestError } from './RestError.js';
 import { Auth } from './type.js';
 import { sendFlatResponse, sendRestResponse } from './util.js';
+
+const SERVICE_NAME = process.env.SERVICE_NAME;
+if (!SERVICE_NAME) {
+  throw new Error(`Env SERVICE_NAME is required.`);
+}
+const DEFAULT_RPM = Number(process.env.DEFAULT_RPM) || 60;
 
 export class BaseController {
   static useHttpCode?: boolean;
@@ -36,8 +43,8 @@ export class BaseController {
   req: Request;
   res: Response;
 
-  static initBase(options: { jwts: string }) {
-    this.jwts = createLocalJWKSet(JSON.parse(options.jwts));
+  static initBase(options: { jwks: string }) {
+    this.jwts = createLocalJWKSet(JSON.parse(options.jwks));
   }
 
   static init(options: { method: string; path: string }) {
@@ -79,6 +86,14 @@ export class BaseController {
     let hasError = false;
     try {
       await this.authorize();
+
+      // admin和public接口都不限流
+      if (this.constructor.scope !== '*:admin' && this.auth) {
+        // 由后端发起的代理调用不限流
+        if (!(this.auth.scopes?.includes('*:admin') && this.req.get('x-personate-sub'))) {
+          await rateLimit(`${SERVICE_NAME}/${this.auth.sub}`, DEFAULT_RPM);
+        }
+      }
 
       // Validate data
       if (constructor.validateData && !constructor.validateData(this.data)) {
@@ -157,7 +172,10 @@ export class BaseController {
         name: payload.name as string,
         scopes,
       };
-      this.source = payload.client_id as string;
+
+      if (!this.source) {
+        this.source = payload.client_id as string;
+      }
 
       if (scopes?.includes('*:admin')) {
         this.auth.sub = (this.req.headers['x-personate-sub'] as string) || this.auth.sub;

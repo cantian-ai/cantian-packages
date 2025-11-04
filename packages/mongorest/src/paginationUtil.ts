@@ -1,6 +1,6 @@
 import { JSONSchema } from 'json-schema-to-ts';
 import { Collection } from 'mongodb';
-import { modelSchemaToApiSchema, modelsToApiObjects, OriginModel } from './modelUtil.js';
+import { modelsToApiObjects, OriginModel } from './modelUtil.js';
 
 export interface Pagination {
   offset: number;
@@ -48,6 +48,43 @@ export const SORT_SCHEMA = {
   default: [{ field: 'createdAt', order: -1 }],
 } as const satisfies JSONSchema;
 
+export const STRING_TYPE_FILTER = {
+  type: ['object', 'string'],
+  properties: {
+    $gt: { type: 'string', description: 'Filter by field greater than the given value.' },
+    $lt: { type: 'string', description: 'Filter by field less than the given value.' },
+    $in: { type: 'array', items: { type: 'string' }, description: 'Filter by field in the given array.' },
+    $eq: { type: 'string', description: 'Filter by field equal to the given value.' },
+    $regex: {
+      type: 'string',
+      description: 'Filter by field matching the given regex. Do not wrap the regex by `/`. Example: `^abc`',
+    },
+  },
+  additionalProperties: false,
+} as const satisfies JSONSchema;
+
+export const NUMBER_TYPE_FILTER = {
+  type: ['object', 'number'],
+  properties: {
+    $gt: { type: 'number', description: 'Filter by field greater than the given value.' },
+    $lt: { type: 'number', description: 'Filter by field less than the given value.' },
+    $in: { type: 'array', items: { type: 'number' }, description: 'Filter by field in the given array.' },
+    $eq: { type: 'number', description: 'Filter by field equal to the given value.' },
+  },
+  additionalProperties: false,
+} as const satisfies JSONSchema;
+
+export const INTEGER_TYPE_FILTER = {
+  type: ['object', 'integer'],
+  properties: {
+    $gt: { type: 'integer', description: 'Filter by field greater than the given value.' },
+    $lt: { type: 'integer', description: 'Filter by field less than the given value.' },
+    $in: { type: 'array', items: { type: 'integer' }, description: 'Filter by field in the given array.' },
+    $eq: { type: 'integer', description: 'Filter by field equal to the given value.' },
+  },
+  additionalProperties: false,
+} as const satisfies JSONSchema;
+
 export const buildFilterFieldSchema = (type: 'string' | 'number') => {
   const schema = {
     type: 'object',
@@ -68,15 +105,11 @@ export const buildFilterFieldSchema = (type: 'string' | 'number') => {
   return schema;
 };
 
-export const buildSearchReulstSchema = (options: {
-  modelSchema;
-  deleteFields?: string[];
-  addFields?: Record<string, JSONSchema>;
-}) => {
+export const buildSearchResultSchema = <T extends JSONSchema>(options: { itemSchema: T }) => {
   const schema = {
     type: 'object',
     properties: {
-      results: { type: 'array', items: modelSchemaToApiSchema(options) },
+      results: { type: 'array', items: options.itemSchema as T },
       pagination: {
         type: 'object',
         properties: {
@@ -87,7 +120,7 @@ export const buildSearchReulstSchema = (options: {
         required: ['limit', 'offset', 'total'],
       },
     },
-    required: ['results', 'pagination'],
+    required: ['results'],
     additionalProperties: false,
   } as const satisfies JSONSchema;
   return schema;
@@ -105,9 +138,11 @@ export function fixIdField<T extends { id?: any }>(fields: T): Omit<T, 'id'> & {
 export function fixRegex(filter: Record<string, any>) {
   const fixedFilter = { ...filter };
   for (const key in fixedFilter) {
-    for (const op of Object.keys(fixedFilter[key])) {
-      if (op === '$regex') {
-        fixedFilter[key][op] = new RegExp(escapeRegexExceptDot(fixedFilter[key][op]), 'i');
+    if (typeof fixedFilter[key] === 'object') {
+      for (const op of Object.keys(fixedFilter[key])) {
+        if (op === '$regex') {
+          fixedFilter[key][op] = new RegExp(escapeRegexExceptDot(fixedFilter[key][op]), 'i');
+        }
       }
     }
   }

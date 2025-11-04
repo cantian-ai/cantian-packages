@@ -9,7 +9,7 @@ const sls = new Client({
 
 const projectName = process.env.ALI_LOG_PROJECT_NAME;
 const logstoreName = process.env.ALI_LOG_PROJECT_NAME;
-const source = process.env.ALI_LOG_SOURCE;
+const source = process.env.ALI_LOG_SOURCE || process.env.SERVICE_NAME;
 
 const origin = {
   log: console.log,

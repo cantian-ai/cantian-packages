@@ -1,6 +1,6 @@
 {
   "name": "cantian-rest",
-  "version": "0.0.50",
+  "version": "0.0.62",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"
@@ -9,7 +9,8 @@
     "dist"
   ],
   "bin": {
-    "cantian-rest-server": "./dist/bin/server.js"
+    "cantian-rest-server": "./dist/bin/server.js",
+    "init-rate-limit": "./dist/bin/initRateLimit.js"
   },
   "scripts": {
     "prepublishOnly": "rm -rf dist && tsc && chmod +x dist/bin/*.js"
@@ -24,6 +25,7 @@
     "cantian-log": "*",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "jose": "^6.0.11"
+    "jose": "^6.0.11",
+    "mongodb": "^6.20.0"
   }
 }

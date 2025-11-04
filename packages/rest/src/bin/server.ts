@@ -4,10 +4,10 @@ import 'cantian-log';
 import { initLog } from 'cantian-log';
 import { registerControllers } from '../handlers.js';
 
-const { JWTS, SCOPE, PORT = 3001 } = process.env;
+const { JWKS, ADMIN_KID, PORT = 3001 } = process.env;
 
-if (!JWTS) {
-  throw new Error('The env JWTS is undefined.');
+if (!JWKS) {
+  throw new Error('The env JWKS is undefined.');
 }
 
 initLog({
@@ -19,7 +19,7 @@ initLog({
   },
 });
 
-(await registerControllers({ jwts: JWTS, scope: SCOPE })).listen(PORT, () => {
+(await registerControllers({ jwks: JWKS })).listen(PORT, () => {
   console.info(`Server is ready on port ${PORT}.`);
 });
 
