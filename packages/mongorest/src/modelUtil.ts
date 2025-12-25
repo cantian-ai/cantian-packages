@@ -25,6 +25,9 @@ export const modelSchemaToApiSchema = (options: {
       for (let deleteField of deleteFields) {
         delete newSchema.properties[deleteField];
       }
+      if (newSchema.required?.length) {
+        newSchema.required = (newSchema.required as string[]).filter((r) => !deleteFields.includes(r));
+      }
     }
     if (options.addFields) {
       for (const [field, schema] of Object.entries(options.addFields)) {

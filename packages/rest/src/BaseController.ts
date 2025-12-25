@@ -83,7 +83,7 @@ export class BaseController {
       data: this.data,
     });
     const constructor = this.constructor;
-    let hasError = false;
+    let error: null | any = null;
     try {
       await this.authorize();
 
@@ -109,15 +109,15 @@ export class BaseController {
       }
       await this.sendResponse(undefined, result);
       return { result };
-    } catch (error) {
-      hasError = true;
+    } catch (err) {
+      error = true;
       if (!this.res.headersSent) {
-        await this.sendResponse(error);
+        await this.sendResponse(err);
       }
-      return { error };
+      return { error: err };
     } finally {
       console.log({
-        hasError,
+        error,
         method: constructor.method,
         path: constructor.path,
         message: 'Request finished.',
@@ -145,46 +145,51 @@ export class BaseController {
 
   async authorize() {
     this.source = this.req.get('x-source');
-    if (this.constructor.isPublic) {
-      return;
-    }
+    const isPublic = this.constructor.isPublic;
 
     // Extract token
     let token = (this.req.headers['token'] || this.req.headers['authorization']) as string;
-    if (!token) {
+    if (!token && !isPublic) {
       throw RestError.unauthorized('Authorization header is required.');
     }
-    if (token.startsWith('Bearer ')) {
-      token = token.replace('Bearer ', '');
-    }
 
-    // Validate token
-    try {
-      const { payload } = await jwtVerify(token, this.constructor.jwts);
-
-      const scopes = (payload.scope as string | undefined)?.split(' ');
-      if (this.constructor.scope && !scopes?.includes(this.constructor.scope)) {
-        throw RestError.forbidden();
+    if (token) {
+      if (token.startsWith('Bearer ')) {
+        token = token.replace('Bearer ', '');
       }
 
-      this.auth = {
-        sub: payload.sub as string,
-        name: payload.name as string,
-        scopes,
-      };
+      // Validate token
+      try {
+        const { payload } = await jwtVerify(token, this.constructor.jwts);
 
-      if (!this.source) {
-        this.source = payload.client_id as string;
-      }
+        const scopes = (payload.scope as string | undefined)?.split(' ');
+        if (this.constructor.scope && !scopes?.includes(this.constructor.scope)) {
+          throw RestError.forbidden();
+        }
 
-      if (scopes?.includes('*:admin')) {
-        this.auth.sub = (this.req.headers['x-personate-sub'] as string) || this.auth.sub;
+        this.auth = {
+          sub: payload.sub as string,
+          name: payload.name as string,
+          scopes,
+        };
+
+        if (!this.source) {
+          this.source = payload.client_id as string;
+        }
+
+        if (scopes?.includes('*:admin')) {
+          this.auth.sub = (this.req.headers['x-personate-sub'] as string) || this.auth.sub;
+        }
+      } catch (error) {
+        if (!isPublic) {
+          if (!(error instanceof RestError)) {
+            throw RestError.unauthorized();
+          }
+          throw error;
+        } else {
+          console.log(`PUBLIC_ACCESS_WITH_INVALID_TOKEN`);
+        }
       }
-    } catch (error) {
-      if (!(error instanceof RestError)) {
-        throw RestError.unauthorized();
-      }
-      throw error;
     }
   }
 }

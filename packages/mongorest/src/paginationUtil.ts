@@ -1,5 +1,5 @@
 import { JSONSchema } from 'json-schema-to-ts';
-import { Collection } from 'mongodb';
+import { AggregateOptions, Collection } from 'mongodb';
 import { modelsToApiObjects, OriginModel } from './modelUtil.js';
 
 export interface Pagination {
@@ -21,6 +21,7 @@ export interface SearchOptions<T extends OriginModel> {
   pagination?: Partial<Pagination>;
   filter?: object;
   sort?: { field: string; order: 1 | -1 }[];
+  preferPrimary?: boolean;
 }
 
 export const PAGINATION_SCHEMA = {
@@ -59,6 +60,7 @@ export const STRING_TYPE_FILTER = {
       type: 'string',
       description: 'Filter by field matching the given regex. Do not wrap the regex by `/`. Example: `^abc`',
     },
+    $exists: { type: 'boolean', description: 'Filter by field existence.' },
   },
   additionalProperties: false,
 } as const satisfies JSONSchema;
@@ -70,6 +72,7 @@ export const NUMBER_TYPE_FILTER = {
     $lt: { type: 'number', description: 'Filter by field less than the given value.' },
     $in: { type: 'array', items: { type: 'number' }, description: 'Filter by field in the given array.' },
     $eq: { type: 'number', description: 'Filter by field equal to the given value.' },
+    $exists: { type: 'boolean', description: 'Filter by field existence.' },
   },
   additionalProperties: false,
 } as const satisfies JSONSchema;
@@ -81,6 +84,7 @@ export const INTEGER_TYPE_FILTER = {
     $lt: { type: 'integer', description: 'Filter by field less than the given value.' },
     $in: { type: 'array', items: { type: 'integer' }, description: 'Filter by field in the given array.' },
     $eq: { type: 'integer', description: 'Filter by field equal to the given value.' },
+    $exists: { type: 'boolean', description: 'Filter by field existence.' },
   },
   additionalProperties: false,
 } as const satisfies JSONSchema;
@@ -167,17 +171,25 @@ export async function search<T extends OriginModel>(options: SearchOptions<T>): 
 
   const fixedFilter = fixRegex(fixIdField(filter));
 
+  let aggregationOptions: AggregateOptions = {};
+  if (options.preferPrimary) {
+    aggregationOptions.readPreference = 'primary';
+  }
+
   // Use aggregation to get both results and total count in one query
   const [aggregateResult] = await collection
-    .aggregate([
-      { $match: fixedFilter },
-      {
-        $facet: {
-          results: [{ $sort: sortObject }, { $skip: offset }, { $limit: limit }],
-          totalCount: [{ $count: 'count' }],
+    .aggregate(
+      [
+        { $match: fixedFilter },
+        {
+          $facet: {
+            results: [{ $sort: sortObject }, { $skip: offset }, { $limit: limit }],
+            totalCount: [{ $count: 'count' }],
+          },
         },
-      },
-    ])
+      ],
+      aggregationOptions,
+    )
     .toArray();
 
   const results = aggregateResult.results;

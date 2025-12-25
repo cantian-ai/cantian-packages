@@ -1,6 +1,6 @@
 {
   "name": "cantian-rest",
-  "version": "0.0.62",
+  "version": "0.0.65",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"

@@ -29,3 +29,11 @@ process.on('SIGTERM', () => {
     console.info(`${process.env.CONTAINER_APP_REPLICA_NAME} keeps alive.`);
   }, 10000);
 });
+
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('unhandledRejection', err);
+});

@@ -30,3 +30,11 @@ app.listen(PORT, (error) => {
     console.info(`Server is ready on port ${PORT}.`);
   }
 });
+
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException', err);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('unhandledRejection', err);
+});

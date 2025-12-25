@@ -11,7 +11,7 @@ export type Model = {
   collection: Collection;
 };
 
-const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz';
+const alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const nanoid = customAlphabet(alphabet, 12);
 
 export const mongoClient = new MongoClient(process.env.MONGODB_URL, {
