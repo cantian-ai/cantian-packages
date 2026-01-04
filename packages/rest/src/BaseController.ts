@@ -107,7 +107,9 @@ export class BaseController {
           throw RestError.internal('Unexpected result.', constructor.validateResult.errors?.[0]);
         }
       }
-      await this.sendResponse(undefined, result);
+      if (!this.res.headersSent) {
+        await this.sendResponse(undefined, result);
+      }
       return { result };
     } catch (err) {
       error = true;

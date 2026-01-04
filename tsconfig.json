@@ -8,6 +8,9 @@
       "path": "packages/log"
     },
     {
+      "path": "packages/request"
+    },
+    {
       "path": "packages/rest"
     },
     {
@@ -27,6 +30,12 @@
     },
     {
       "path": "packages/tymext"
+    },
+    {
+      "path": "packages/ai"
+    },
+    {
+      "path": "packages/examples"
     }
   ]
 }

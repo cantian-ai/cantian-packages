@@ -1,0 +1,23 @@
+{
+  "name": "cantian-ai",
+  "version": "0.0.19",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "prepublishOnly": "rm -rf dist && tsc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "ajv": "^8.17.1",
+    "async-mutex": "^0.5.0",
+    "cantian-request": "*"
+  },
+  "devDependencies": {
+    "json-schema-to-ts": "^3.1.1"
+  }
+}
