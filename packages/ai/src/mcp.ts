@@ -1,7 +1,7 @@
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { CallToolResultSchema, ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js';
-import { AgentTool } from './Agent.js';
+import { Tool } from './type.js';
 
 export const createMcpClient = async (options: { url: string; authorization: string }) => {
   const { url, authorization } = options;
@@ -50,7 +50,7 @@ export const listAgentTools = async (options: { url: string; authorization: stri
   const response = await listTools(client);
   await client.transport?.close();
   await client.close();
-  const tools: AgentTool[] = response.tools.map((t) => ({
+  const tools: Tool[] = response.tools.map((t) => ({
     name: t.name,
     description: t.description,
     parameters: t.inputSchema,

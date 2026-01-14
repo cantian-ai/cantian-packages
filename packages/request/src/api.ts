@@ -2,7 +2,7 @@ import { getTraceId } from 'cantian-als';
 import { limitFunction } from 'p-limit';
 import { createThrowHttpErrorFetch, createWithTimeoutFetch } from './basic.js';
 
-export type API_OPTIONS = {
+export type ApiOptions = {
   basepath?: string;
   path: string; // Without '/rest' prefix
   key?: string;
@@ -13,29 +13,34 @@ export type API_OPTIONS = {
   locale?: string;
 };
 
-const basicApi = createThrowHttpErrorFetch(createWithTimeoutFetch(10000, fetch));
+const basicFetch = createThrowHttpErrorFetch(createWithTimeoutFetch(10000, fetch));
+
+export const buildFetchParams = (options: ApiOptions): [string, RequestInit] => {
+  const { basepath = process.env.API_BASEPATH, path, key = process.env.API_KEY_INTERNAL, data, method } = options;
+  const headers = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${key}`,
+    'x-trace-id': getTraceId(),
+  };
+  if (options.personateSub) {
+    headers['x-personate-sub'] = options.personateSub;
+  }
+  if (options.source) {
+    headers['x-source'] = options.source;
+  }
+  if (options.locale) {
+    headers['x-locale'] = options.locale;
+  }
+  const body = data ? JSON.stringify(data) : undefined;
+  const url = `${basepath}${path}`;
+  const init = { headers, body, method };
+  return [url, init];
+};
 
 export const api = limitFunction(
-  async (options: API_OPTIONS) => {
-    const { basepath = process.env.API_BASEPATH, path, key = process.env.API_KEY_INTERNAL, data, method } = options;
-    const headers = {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${key}`,
-      'x-trace-id': getTraceId(),
-    };
-    if (options.personateSub) {
-      headers['x-personate-sub'] = options.personateSub;
-    }
-    if (options.source) {
-      headers['x-source'] = options.source;
-    }
-    if (options.locale) {
-      headers['x-locale'] = options.locale;
-    }
-    const body = data ? JSON.stringify(data) : undefined;
-    const url = `${basepath}${path}`;
-    const init = { headers, body, method };
-    const response = await basicApi(url, init);
+  async (options: ApiOptions) => {
+    const [url, init] = buildFetchParams(options);
+    const response = await basicFetch(url, init);
     if (response.status !== 204) {
       const text = await response.text();
       let result: { code: number; data: any };
@@ -46,7 +51,7 @@ export const api = limitFunction(
         throw new Error(`API returns a non-JSON string: ${text}`);
       }
       if (result.code !== 1) {
-        throw new Error(JSON.stringify(result));
+        throw result;
       }
       return result.data;
     }

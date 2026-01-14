@@ -1,4 +1,3 @@
-export * from './Agent.js';
 export * from './mcp.js';
 export * from './message.js';
 export * from './models/index.js';

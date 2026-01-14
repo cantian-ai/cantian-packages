@@ -1,33 +1,47 @@
-import { Agent, AgentTool, DeepseekModel } from 'cantian-ai';
+import { DeepseekModel, Tool } from 'cantian-ai';
+import util from 'node:util';
+
+util.inspect.defaultOptions.depth = 12;
 
 (async () => {
-  const url = 'https://openapi-dev.cantian.ai/mcp?tools=Get_bazi_from_solar,Get_bazi_from_lunar';
-  const authorization = process.env.API_KEY_INTERNAL!;
+  // const url = 'https://openapi-dev.cantian.ai/mcp?tools=Get_bazi_from_solar,Get_bazi_from_lunar';
+  // const authorization = process.env.API_KEY_INTERNAL!;
   // const tools = await listAgentTools({ url, authorization });
-  const tools = [
-    {
+  const tools = {
+    getDate: {
       name: 'getDate',
       description: 'Get date',
       parameters: { type: 'object' },
-      handler(args, context, controller) {
-        return { date: new Date().toISOString() };
+      async handler(args, context) {
+        throw new Error('Try again');
+      },
+      toAiText(result) {
+        return `今天${result.date}`;
       },
     },
-  ] satisfies AgentTool[];
+  } satisfies Record<string, Tool>;
 
   const deepseek = new DeepseekModel(
     'https://ark.cn-beijing.volces.com/api/v3/responses',
     process.env.DEEPSEEK_API_KEY!,
     'deepseek-v3-1-250821',
   );
-  const agent = new Agent({ model: deepseek, tools });
   try {
-    for await (const chunk of agent.stream([{ role: 'user', content: '今天日期？' }], {
-      context: { userId: 'abcd' },
-    })) {
+    for await (const chunk of deepseek.agenticStream(
+      [{ role: 'user', content: '今天日期？' }],
+      {
+        tools,
+      },
+      {
+        context: { userId: 'abcd' },
+        maxRounds: 2,
+        logMeta: { traceId: 'abcdefg' },
+      },
+    )) {
       console.log(chunk);
     }
   } catch (error) {
     console.error(error);
   }
+  console.log('DONE');
 })();

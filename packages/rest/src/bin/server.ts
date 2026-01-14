@@ -4,7 +4,7 @@ import 'cantian-log';
 import { initLog } from 'cantian-log';
 import { registerControllers } from '../handlers.js';
 
-const { JWKS, ADMIN_KID, PORT = 3001 } = process.env;
+const { JWKS, PORT = 3001 } = process.env;
 
 if (!JWKS) {
   throw new Error('The env JWKS is undefined.');

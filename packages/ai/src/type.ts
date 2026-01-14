@@ -1,3 +1,4 @@
+import { ValidateFunction } from 'ajv';
 import { JSONSchema } from 'json-schema-to-ts';
 
 export type Role = 'user' | 'assistant' | 'system' | 'developer';
@@ -17,7 +18,8 @@ export type ToolCallOutputChunk = {
   type: 'TOOL_CALL_OUTPUT';
   callId: string;
   name: string;
-  result: any;
+  result?: any;
+  aiText?: string;
   error?: any;
 };
 export type InputItem = MessageChunk | ToolCallChunk | ToolCallOutputChunk;
@@ -43,9 +45,15 @@ export type TokenChunk = {
   delta: string;
 };
 
+export type AgenticToolToken = {
+  type: 'AGENTIC_TOOL_TOKEN';
+  data: any;
+};
+
 // chunk类型：收到usage数据，可用来识别大模型调用结束
 export type UsageChunk = {
   type: 'USAGE';
+  model: string;
   totalTokens: number;
   inputUsage: {
     inputTokens: number;
@@ -58,15 +66,39 @@ export type UsageChunk = {
   firstTokenCostMs: number;
   totalCostMs: number;
   estimatedCost: number;
+  input: any;
+  output: any;
 };
 
-export type ToolDefinition = {
+// chunk类型：Agent的usage
+export type AgentUsageChunk = {
+  type: 'AGENT_USAGE';
+  totalTokens: number;
+  model: string;
+  inputUsage: {
+    inputTokens: number;
+    cachedTokens: number;
+  };
+  outputUsage: {
+    outputTokens: number;
+    reasoningTokens: number;
+  };
+  firstTokenCostMs: number;
+  totalCostMs: number;
+  estimatedCost: number;
+  rounds: { input: any; output: any }[];
+};
+
+export type Tool<Context = any, Result = any> = {
   name: string;
   description?: string;
   parameters: JSONSchema;
+  handler: (args, context: Context) => Result | Promise<Result> | AsyncGenerator<AgenticToolToken>;
+  validate?: ValidateFunction;
+  toAiText?: (result: any, context: Context, args) => string | Promise<string>;
 };
 
 export type ModelChunk = ModelCallingChunk | TokenChunk | MessageChunk | ToolCallChunk | UsageChunk;
-export type AgentChunk = ModelChunk | ToolCallingChunk | ToolCallOutputChunk;
+export type AgentChunk = ModelChunk | AgenticToolToken | ToolCallingChunk | ToolCallOutputChunk | AgentUsageChunk;
 
 export {};

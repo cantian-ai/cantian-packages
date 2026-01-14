@@ -16,6 +16,7 @@ const DEFAULT_RPM = Number(process.env.DEFAULT_RPM) || 60;
 
 export class BaseController {
   static useHttpCode?: boolean;
+  static useSse?: boolean;
   static summary: string;
   static description: string;
 
@@ -83,7 +84,7 @@ export class BaseController {
       data: this.data,
     });
     const constructor = this.constructor;
-    let error: null | any = null;
+    let error: any = undefined;
     try {
       await this.authorize();
 
@@ -101,18 +102,29 @@ export class BaseController {
       }
 
       // Run and validate result
-      const result = await this.run();
-      if (constructor.validateResult) {
-        if (!constructor.validateResult(result)) {
-          throw RestError.internal('Unexpected result.', constructor.validateResult.errors?.[0]);
+      if (constructor.useSse) {
+        this.sendSseHeader();
+        try {
+          await this.run();
+        } catch (error) {
+          this.writeSseError(error);
+        } finally {
+          this.res.end();
         }
+      } else {
+        const result = await this.run();
+        if (constructor.validateResult) {
+          if (!constructor.validateResult(result)) {
+            throw RestError.internal('Unexpected result.', constructor.validateResult.errors?.[0]);
+          }
+        }
+        if (!this.res.headersSent) {
+          await this.sendResponse(undefined, result);
+        }
+        return { result };
       }
-      if (!this.res.headersSent) {
-        await this.sendResponse(undefined, result);
-      }
-      return { result };
     } catch (err) {
-      error = true;
+      error = err;
       if (!this.res.headersSent) {
         await this.sendResponse(err);
       }
@@ -193,5 +205,40 @@ export class BaseController {
         }
       }
     }
+  }
+
+  sendSseHeader() {
+    this.res
+      .status(200)
+      .setHeader('Content-Type', 'text/event-stream')
+      .setHeader('Cache-Control', 'no-cache, no-transform')
+      .setHeader('Connection', 'keep-alive');
+  }
+
+  writeSseData(data: Object) {
+    if (!this.res.writable || this.res.writableEnded) {
+      return;
+    }
+    try {
+      this.res.write(`data: ${JSON.stringify(data)}\n\n`);
+    } catch (error) {
+      console.error('WRITE_ERROR', error);
+    }
+  }
+
+  writeSseError(error: any) {
+    if (!(error instanceof RestError)) {
+      console.error('UNEXPECTED_ERROR', error);
+    }
+    if (!this.res.writable || this.res.writableEnded) {
+      return;
+    }
+    let data: string;
+    if (error instanceof RestError) {
+      data = `data: ${JSON.stringify({ error: { code: error.statusCode, errorMessage: error.errorMessage } })}\n\n`;
+    } else {
+      data = `data: ${JSON.stringify({ error: { code: 500 } })}\n\n`;
+    }
+    this.res.write(data);
   }
 }

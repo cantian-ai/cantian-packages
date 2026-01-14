@@ -15,7 +15,7 @@ export const createBizHandler = (c: typeof BaseController) => async (req: Reques
   });
   try {
     const result = await controller.execute();
-    if (result.error && !(result.error instanceof RestError)) {
+    if (result?.error && !(result.error instanceof RestError)) {
       throw result.error;
     }
   } catch (error) {
