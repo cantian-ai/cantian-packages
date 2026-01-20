@@ -1,4 +1,4 @@
-import { Tool, ToolCallChunk } from './type.js';
+import { InputItem, Tool, ToolCallChunk } from './type.js';
 
 export const executeTool = async (
   toolCall: ToolCallChunk,
@@ -38,4 +38,11 @@ export const executeTool = async (
 
 export function isAsyncGenerator(value) {
   return value && typeof value[Symbol.asyncIterator] === 'function';
+}
+
+export function filterMessage(message: InputItem) {
+  if (!message.type || message.type === 'MESSAGE') {
+    return !!message.content;
+  }
+  return true;
 }

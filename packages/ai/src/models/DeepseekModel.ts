@@ -2,6 +2,7 @@ import { sse } from 'cantian-request';
 import { JSONSchema } from 'json-schema-to-ts';
 import { saveModelUsage } from '../tokenUsage.js';
 import { InputItem, MessageChunk, ModelCallingChunk, ModelChunk, TokenChunk, ToolCallChunk, UsageChunk } from '../type.js';
+import { filterMessage } from '../util.js';
 import { BaseModel, Options } from './BaseModel.js';
 
 type DeepseekModelOptions = {
@@ -22,7 +23,7 @@ export class DeepseekModel extends BaseModel<DeepseekModelOptions> {
       const [url, init] = this.buildResponseRequestParams(messages, options);
       const startedAt = Date.now();
       const response = sse(url, init);
-      let usageContent: Partial<UsageChunk> = { type: 'USAGE', input: JSON.parse(init.body as string) };
+      let usageContent: Partial<UsageChunk> = { type: 'USAGE', model: this.model, input: JSON.parse(init.body as string) };
       yield { type: 'MODEL_CALLING', url, init } satisfies ModelCallingChunk;
       const logs: any[] = [];
       for await (const chunk of response) {
@@ -35,7 +36,7 @@ export class DeepseekModel extends BaseModel<DeepseekModelOptions> {
           const data = JSON.parse(chunk.data);
           switch (chunk.event) {
             case 'response.output_text.delta':
-              if (usageContent.firstTokenCostMs !== undefined) {
+              if (usageContent.firstTokenCostMs === undefined) {
                 usageContent.firstTokenCostMs = Date.now() - startedAt;
               }
               yield { type: 'TOKEN', delta: data.delta } satisfies TokenChunk;
@@ -110,6 +111,7 @@ export class DeepseekModel extends BaseModel<DeepseekModelOptions> {
     if (!tools || !Object.keys(tools).length || options?.finalRound) {
       tools = undefined;
     }
+    messages = messages.filter(filterMessage);
     return [
       this.url,
       {

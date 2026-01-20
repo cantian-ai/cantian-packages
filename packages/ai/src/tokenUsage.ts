@@ -40,7 +40,6 @@ export const saveModelUsage = async (usageChunk: UsageChunk, meta: any) => {
     updatedAt: now,
   };
   await collection.insertOne(tokenUsage);
-  console.log('Log done!');
 };
 
 export const saveAgentUsage = async (agentUsageChunk: AgentUsageChunk, meta: any) => {
@@ -58,5 +57,4 @@ export const saveAgentUsage = async (agentUsageChunk: AgentUsageChunk, meta: any
     updatedAt: now,
   };
   await collection.insertOne(tokenUsage);
-  console.log('Log done!');
 };
