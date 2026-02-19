@@ -1,6 +1,6 @@
 {
-  "name": "cantian-examples",
-  "version": "0.0.1",
+  "name": "cantian-liuyao",
+  "version": "0.0.11",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"
@@ -12,10 +12,6 @@
     "prepublishOnly": "rm -rf dist && tsc"
   },
   "dependencies": {
-    "cantian-ai": "*",
-    "cantian-liuyao": "*",
-    "cantian-request": "*",
-    "fontmin": "^1.1.1",
-    "openai": "^6.16.0"
+    "tyme4ts": "^1.4.1"
   }
 }

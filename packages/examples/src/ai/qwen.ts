@@ -1,4 +1,4 @@
-import { ResponseLlm, Tool } from 'cantian-ai';
+import { CompletionLlm, Tool } from 'cantian-ai';
 import { JSONSchema } from 'json-schema-to-ts';
 
 const schema = {
@@ -25,25 +25,30 @@ const schema = {
       },
     },
   ];
-  const deepseek = new ResponseLlm(
-    'https://ark.cn-beijing.volces.com/api/v3/responses',
-    process.env.DEEPSEEK_API_KEY!,
-    'deepseek-v3-1-250821',
+  const completion = new CompletionLlm(
+    'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    process.env.BAILIAN_API_KEY!,
+    'qwen3-max',
   );
 
-  // try {
-  //   for await (const chunk of deepseek.stream([{ role: 'user', content: '你好，今天日期？' }], {})) {
-  //     console.log(chunk);
-  //   }
-  // } catch (error) {
-  //   console.error(error);
-  // }
-  const result = await deepseek.invoke(
+  const result = await completion.invoke(
     [
       { role: 'assistant', content: '' },
       { role: 'user', content: '你好' },
     ],
-    { logMeta: { traceId: 'gaga1' } },
+    {
+      logMeta: { traceId: 'gaga2' },
+      textSchema: {
+        type: 'object',
+        properties: {
+          text: { type: 'string' },
+        },
+        additionalProperties: false,
+        required: ['text'],
+      },
+    },
   );
-  console.log(result);
+  console.log(JSON.stringify(result, undefined, 2));
+  console.log(JSON.parse(result.message));
+  console.log('Done');
 })();

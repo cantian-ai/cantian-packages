@@ -29,6 +29,7 @@ export class BaseController {
   static jwts: ReturnType<typeof createLocalJWKSet>;
   static isPublic?: boolean;
   static scope?: string;
+  static skipRateLimit?: boolean;
 
   static method: string;
   static path: string;
@@ -82,17 +83,20 @@ export class BaseController {
       message: 'Received a request.',
       endpoint: `${this.req.method} ${this.req.path}`,
       data: this.data,
+      xHeaders: this.getXHeaders(),
     });
     const constructor = this.constructor;
     let error: any = undefined;
     try {
       await this.authorize();
 
-      // admin和public接口都不限流
-      if (this.constructor.scope !== '*:admin' && this.auth) {
-        // 由后端发起的代理调用不限流
-        if (!(this.auth.scopes?.includes('*:admin') && this.req.get('x-personate-sub'))) {
-          await rateLimit(`${SERVICE_NAME}/${this.auth.sub}`, DEFAULT_RPM);
+      if (!this.constructor.skipRateLimit) {
+        // admin和public接口都不限流
+        if (this.constructor.scope !== '*:admin' && this.auth) {
+          // 由后端发起的代理调用不限流
+          if (!(this.auth.scopes?.includes('*:admin') && this.req.get('x-personate-sub'))) {
+            await rateLimit(`${SERVICE_NAME}/${this.auth.sub}`, DEFAULT_RPM);
+          }
         }
       }
 
@@ -240,5 +244,15 @@ export class BaseController {
       data = `data: ${JSON.stringify({ error: { code: 500 } })}\n\n`;
     }
     this.res.write(data);
+  }
+
+  getXHeaders() {
+    const xHeaders: Record<string, string> = {};
+    for (const [key, value] of Object.entries(this.req.headers)) {
+      if (key.startsWith('x-')) {
+        xHeaders[key] = value as string;
+      }
+    }
+    return xHeaders;
   }
 }

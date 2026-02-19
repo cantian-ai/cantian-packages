@@ -1,10 +1,10 @@
 import { InputItem, Tool, ToolCallChunk } from './type.js';
 
-export const executeTool = async (
+export async function* executeTool(
   toolCall: ToolCallChunk,
   tools: Record<string, Tool>,
   context: any,
-): Promise<{ error?: any; result?: any; aiText?: string }> => {
+): AsyncGenerator<any, { error?: any; result?: any; aiText?: string }> {
   const tool = tools[toolCall.name];
   if (!tool) {
     return { error: new Error('The tool name does not exist.') };
@@ -24,17 +24,24 @@ export const executeTool = async (
       }
     }
     const handlerResult = tool.handler(json, context);
-    const isAsyncGen = isAsyncGenerator(handlerResult);
-    if (isAsyncGen) {
-      return { result: handlerResult };
+    let result;
+
+    // generator函数的result是最后yield的结果
+    if (isAsyncGenerator(handlerResult)) {
+      result = [];
+      for await (const chunk of handlerResult) {
+        result.push(chunk);
+        yield chunk;
+      }
+    } else {
+      result = await handlerResult;
     }
-    const result = await handlerResult;
     const aiText = tool.toAiText ? await tool.toAiText(result, context, json) : undefined;
     return { result, aiText };
   } catch (error) {
     return { error };
   }
-};
+}
 
 export function isAsyncGenerator(value) {
   return value && typeof value[Symbol.asyncIterator] === 'function';

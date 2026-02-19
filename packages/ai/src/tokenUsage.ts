@@ -17,6 +17,7 @@ type TokenUsage = {
     input: any;
     output: any;
   }[];
+  firstTokenCostMs: number;
   estimatedCost: number;
   createdAt: string;
   updatedAt: string;
@@ -31,6 +32,7 @@ export const saveModelUsage = async (usageChunk: UsageChunk, meta: any) => {
     ...meta,
     model: usageChunk.model,
     totalTokens: usageChunk.totalTokens,
+    firstTokenCostMs: usageChunk.firstTokenCostMs,
     totalCostMs: usageChunk.totalCostMs,
     rounds: [{ input: usageChunk.input, output: usageChunk.output }],
     estimatedCost: usageChunk.estimatedCost,
@@ -48,6 +50,7 @@ export const saveAgentUsage = async (agentUsageChunk: AgentUsageChunk, meta: any
     ...meta,
     model: agentUsageChunk.model,
     totalTokens: agentUsageChunk.totalTokens,
+    firstTokenCostMs: agentUsageChunk.firstTokenCostMs,
     totalCostMs: agentUsageChunk.totalCostMs,
     rounds: agentUsageChunk.rounds,
     estimatedCost: agentUsageChunk.estimatedCost,

@@ -1,4 +1,4 @@
-import { ResponseLlm, Tool } from 'cantian-ai';
+import { CompletionLlm, Tool } from 'cantian-ai';
 import util from 'node:util';
 
 util.inspect.defaultOptions.depth = 12;
@@ -26,13 +26,13 @@ util.inspect.defaultOptions.depth = 12;
     },
   } satisfies Record<string, Tool>;
 
-  const deepseek = new ResponseLlm(
-    'https://ark.cn-beijing.volces.com/api/v3/responses',
-    process.env.DEEPSEEK_API_KEY!,
-    'deepseek-v3-1-250821',
+  const completion = new CompletionLlm(
+    'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    process.env.BAILIAN_API_KEY!,
+    'qwen3-max',
   );
   try {
-    for await (const chunk of deepseek.agenticStream(
+    for await (const chunk of completion.agenticStream(
       [{ role: 'user', content: '今天日期？' }],
       {
         tools,

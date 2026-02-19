@@ -5,6 +5,7 @@ import {
   AgenticToolToken,
   AgentUsageChunk,
   InputItem,
+  MessageChunk,
   ModelChunk,
   Tool,
   ToolCallChunk,
@@ -12,7 +13,7 @@ import {
   ToolCallOutputChunk,
   UsageChunk,
 } from '../type.js';
-import { executeTool, isAsyncGenerator } from '../util.js';
+import { executeTool } from '../util.js';
 
 export type Options = {
   tools?: Record<string, Tool>;
@@ -23,7 +24,7 @@ export type Options = {
 
 const DEFAULT_MAX_ROUNDS = 10;
 
-export class BaseModel<T extends Options = Options> {
+export class BaseLlm<T extends Options = Options> {
   public semaphore: Semaphore;
 
   constructor(public url: string, public apiKey: string, public model: string) {
@@ -34,8 +35,21 @@ export class BaseModel<T extends Options = Options> {
     throw new Error('Method not implemented.');
   }
 
-  async invoke(messages: InputItem[], options?: T): Promise<{ message: string; usage?: UsageChunk }> {
-    throw new Error('Method not implemented.');
+  // 实际场景中不需要考虑带上tool调用的情况！
+  async invoke(input: MessageChunk[], options?: T) {
+    let message = '';
+    let usage: UsageChunk | undefined;
+    for await (const chunk of this.stream(input, options)) {
+      switch (chunk.type) {
+        case 'MESSAGE':
+          message += chunk.content;
+          break;
+        case 'USAGE':
+          usage = chunk;
+          break;
+      }
+    }
+    return { message, usage };
   }
 
   async *agenticStream(
@@ -99,36 +113,36 @@ export class BaseModel<T extends Options = Options> {
             break;
         }
       }
-      let hasStreaming = false;
       if (toolCalls.length) {
         for (const toolCall of toolCalls) {
           yield { ...toolCall, type: 'TOOL_CALLING' } satisfies ToolCallingChunk;
-          const { error, result, aiText } = await executeTool(toolCall, modelOptions!.tools!, options?.context);
-          if (isAsyncGenerator(result)) {
-            for await (const chunk of result) {
-              yield { type: 'AGENTIC_TOOL_TOKEN', data: chunk } satisfies AgenticToolToken;
+          const it = executeTool(toolCall, modelOptions!.tools!, options?.context);
+          let result: {
+            error?: any;
+            result?: any;
+            aiText?: string;
+          };
+          while (true) {
+            const { value, done } = await it.next();
+            if (done) {
+              result = value;
+              break;
             }
-            hasStreaming = true;
-          } else {
-            const toolCallOutputChunk: ToolCallOutputChunk = {
-              type: 'TOOL_CALL_OUTPUT',
-              name: toolCall.name,
-              callId: toolCall.callId,
-              error,
-              result: result,
-              aiText,
-            };
-            input.push(toolCallOutputChunk);
-            yield toolCallOutputChunk;
+            yield { type: 'AGENTIC_TOOL_TOKEN', data: value } satisfies AgenticToolToken;
           }
+          const toolCallOutputChunk: ToolCallOutputChunk = {
+            type: 'TOOL_CALL_OUTPUT',
+            name: toolCall.name,
+            callId: toolCall.callId,
+            error: result.error,
+            result: result.result,
+            aiText: result.aiText,
+          };
+          input.push(toolCallOutputChunk);
+          yield toolCallOutputChunk;
         }
       }
       roundIndex++;
-
-      // streaming的时候会正常推AI token给客户端展示，不应该再把结果返回给agent，会导致消息错乱
-      if (hasStreaming) {
-        break;
-      }
     } while (toolCalls.length && roundIndex < maxRounds && !options?.signal?.aborted);
     agentUsage.totalCostMs = Date.now() - startedTimestamp;
     if (options?.logMeta) {

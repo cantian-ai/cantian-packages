@@ -1,6 +1,6 @@
 {
   "name": "cantian-ai",
-  "version": "0.0.34",
+  "version": "0.0.40",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"

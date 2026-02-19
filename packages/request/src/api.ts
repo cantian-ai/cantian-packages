@@ -11,6 +11,7 @@ export type ApiOptions = {
   personateSub?: string;
   source?: string;
   locale?: string;
+  time?: string;
 };
 
 const basicFetch = createThrowHttpErrorFetch(createWithTimeoutFetch(10000, fetch));
@@ -30,6 +31,9 @@ export const buildFetchParams = (options: ApiOptions): [string, RequestInit] => 
   }
   if (options.locale) {
     headers['x-locale'] = options.locale;
+  }
+  if (options.time) {
+    headers['x-time'] = options.time;
   }
   const body = data ? JSON.stringify(data) : undefined;
   const url = `${basepath}${path}`;

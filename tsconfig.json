@@ -35,6 +35,9 @@
       "path": "packages/ai"
     },
     {
+      "path": "packages/liuyao"
+    },
+    {
       "path": "packages/examples"
     }
   ]

@@ -3,7 +3,7 @@ import { JSONSchema } from 'json-schema-to-ts';
 import { saveModelUsage } from '../tokenUsage.js';
 import { InputItem, MessageChunk, ModelCallingChunk, ModelChunk, TokenChunk, ToolCallChunk, UsageChunk } from '../type.js';
 import { filterMessage } from '../util.js';
-import { BaseModel, Options } from './BaseModel.js';
+import { BaseLlm, Options } from './BaseLlm.js';
 
 type DeepseekModelOptions = {
   thinking?: { type: 'enabled' | 'disabled' | 'auto' };
@@ -16,7 +16,7 @@ type DeepseekModelOptions = {
 
 const COST_DOLLAR_PER_M = 0.6;
 
-export class DeepseekModel extends BaseModel<DeepseekModelOptions> {
+export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
   async *stream(messages: InputItem[], options?: DeepseekModelOptions): AsyncGenerator<ModelChunk> {
     const [, release] = await this.semaphore.acquire();
     try {
@@ -25,10 +25,8 @@ export class DeepseekModel extends BaseModel<DeepseekModelOptions> {
       const response = sse(url, init);
       let usageContent: Partial<UsageChunk> = { type: 'USAGE', model: this.model, input: JSON.parse(init.body as string) };
       yield { type: 'MODEL_CALLING', url, init } satisfies ModelCallingChunk;
-      const logs: any[] = [];
       for await (const chunk of response) {
         if (chunk) {
-          logs.push(chunk);
           if (chunk.data === '[DONE]') {
             break;
           }
@@ -87,23 +85,6 @@ export class DeepseekModel extends BaseModel<DeepseekModelOptions> {
     } finally {
       release();
     }
-  }
-
-  // 实际场景中不需要考虑带上tool调用的情况！
-  async invoke(input: MessageChunk[], options?: DeepseekModelOptions) {
-    let message = '';
-    let usage: UsageChunk | undefined;
-    for await (const chunk of this.stream(input, options)) {
-      switch (chunk.type) {
-        case 'MESSAGE':
-          message += chunk.content;
-          break;
-        case 'USAGE':
-          usage = chunk;
-          break;
-      }
-    }
-    return { message, usage };
   }
 
   protected buildResponseRequestParams(messages: InputItem[], options?: DeepseekModelOptions) {
