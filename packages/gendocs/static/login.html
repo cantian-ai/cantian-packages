@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login</title>
+    <!-- Allow OAuth popup to communicate back via postMessage -->
+    <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" defer></script>
+    <!-- Google callback - must be defined before GSI script initializes -->
+    <script>
+      async function handleGoogleCredential(response) {
+        const credential = response?.credential;
+        if (!credential) return;
+        const { resolveApi } = await import('./env.js');
+        try {
+          const resp = await fetch(resolveApi('/users/login-oauth'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ target: 'GOOGLE', credential }),
+          });
+          const data = await resp.json();
+          if (data?.code === 1) {
+            if (window.opener && !window.opener.closed) {
+              window.opener.location.replace('index.html');
+              window.close();
+            } else {
+              location.replace('index.html');
+            }
+          } else {
+            alert(data?.errorMessage || 'Google login failed');
+          }
+        } catch {
+          alert('Google login failed');
+        }
+      }
+    </script>
+  </head>
+  <body class="flex items-center justify-center h-screen bg-[#f7f8fa]">
+    <!-- Google config -->
+    <div id="g_id_onload" data-client_id="827576775449-iv23fpvogbjfjk14ul68a9kal9dtjl7o.apps.googleusercontent.com" data-callback="handleGoogleCredential" data-auto_prompt="false"></div>
+
+    <div class="bg-white rounded-md shadow-sm border border-gray-200 p-6 w-96 flex flex-col gap-4">
+      <div class="text-lg font-medium text-gray-900 text-center">Sign in</div>
+
+      <!-- Email Login -->
+      <input
+        id="email"
+        type="email"
+        class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Email"
+      />
+
+      <div class="flex gap-2">
+        <input
+          id="code"
+          class="border border-gray-300 rounded-md px-3 py-2 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="Verification code"
+        />
+        <button
+          id="send-btn"
+          onclick="sendCode()"
+          class="w-20 px-2 py-2 border border-gray-300 rounded-md text-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+        >
+          Send
+        </button>
+      </div>
+
+      <button
+        id="login-btn"
+        onclick="login()"
+        disabled
+        class="mt-2 w-full bg-blue-600 text-white py-2 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+      >
+        Login
+      </button>
+
+      <!-- Divider -->
+      <div class="flex items-center gap-2 text-xs text-gray-400 mt-2">
+        <div class="flex-1 h-px bg-gray-200"></div>
+        <div>or</div>
+        <div class="flex-1 h-px bg-gray-200"></div>
+      </div>
+
+      <!-- OAuth Providers -->
+      <div class="flex flex-col gap-2 w-full items-center">
+        <!-- Apple -->
+        <button
+          id="apple-login-btn"
+          class="w-full h-11 border border-gray-300 rounded-md bg-white hover:bg-gray-50 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+        >
+          <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+          </svg>
+          <span class="text-sm font-medium text-gray-700">Continue with Apple</span>
+        </button>
+
+        <!-- Google -->
+        <div class="w-full flex justify-center">
+          <div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="continue_with" data-shape="rectangular" data-logo_alignment="left" data-width="336"></div>
+        </div>
+
+        <!-- Naver -->
+        <button
+          id="naver-login-btn"
+          class="w-full h-11 border border-gray-300 rounded-md bg-[#03C75A] hover:bg-[#02b350] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+        >
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="white">
+            <path d="M3.5 3.5v17h3.3l5.4-8.6V20.5h3.3v-17h-3.3l-5.4 8.6V3.5z"/>
+          </svg>
+          <span class="text-sm font-medium text-white">Continue with Naver</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Application Logic -->
+    <script type="module">
+      import { resolveApi } from './env.js';
+
+      // Check if already logged in
+      fetch(resolveApi('/users/exchange-token'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+        credentials: 'include',
+      })
+        .then(r => r.json())
+        .then(d => d?.code === 1 && location.replace('index.html'))
+        .catch(() => {});
+
+      // State management
+      let countdown = 0;
+      let timer = null;
+      let sending = false;
+      let loggingIn = false;
+
+      const emailInput = document.getElementById('email');
+      const codeInput = document.getElementById('code');
+      const sendBtn = document.getElementById('send-btn');
+      const loginBtn = document.getElementById('login-btn');
+
+      function updateLoginBtn() {
+        loginBtn.disabled = !(emailInput.value && codeInput.value) || loggingIn;
+      }
+
+      function updateSendBtn() {
+        if (sending) {
+          sendBtn.disabled = true;
+          sendBtn.innerText = 'Sending...';
+          return;
+        }
+        if (countdown > 0) {
+          sendBtn.disabled = true;
+          sendBtn.innerText = `${countdown}s`;
+        } else {
+          sendBtn.disabled = false;
+          sendBtn.innerText = 'Send';
+        }
+      }
+
+      async function sendCode() {
+        if (countdown > 0 || sending) return;
+        const email = emailInput.value.trim();
+        if (!email) return;
+
+        sending = true;
+        updateSendBtn();
+        try {
+          const resp = await fetch(resolveApi('/users/send-email-code'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, purpose: 'LOGIN' }),
+          });
+          const data = await resp.json();
+          if (data?.code !== 1) {
+            alert(data?.errorMessage || 'Failed to send code');
+            return;
+          }
+          countdown = 60;
+          updateSendBtn();
+          timer = setInterval(() => {
+            countdown--;
+            updateSendBtn();
+            if (countdown <= 0) clearInterval(timer);
+          }, 1000);
+        } finally {
+          sending = false;
+          updateSendBtn();
+        }
+      }
+
+      async function login() {
+        const email = emailInput.value.trim();
+        const code = codeInput.value.trim();
+        if (!email || !code || loggingIn) return;
+
+        loggingIn = true;
+        loginBtn.innerText = 'Logging in...';
+        updateLoginBtn();
+        try {
+          const resp = await fetch(resolveApi('/users/login-email-code'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ email, code }),
+          });
+          const data = await resp.json();
+          if (data?.code === 1) {
+            location.replace('index.html');
+          } else {
+            alert(data?.errorMessage || 'Login failed');
+          }
+        } finally {
+          loggingIn = false;
+          loginBtn.innerText = 'Login';
+          updateLoginBtn();
+        }
+      }
+
+      // Event listeners
+      emailInput.oninput = updateLoginBtn;
+      codeInput.oninput = updateLoginBtn;
+      window.sendCode = sendCode;
+      window.login = login;
+    </script>
+
+    <!-- Apple Login -->
+    <script type="module">
+      import { resolveApi } from './env.js';
+
+      document.addEventListener('DOMContentLoaded', () => {
+        if (!window.AppleID) return;
+
+        const redirectUri = window.location.href.split('#')[0].split('?')[0];
+
+        AppleID.auth.init({
+          clientId: 'cantian.ai-app',
+          scope: 'name email',
+          redirectURI: redirectUri,
+          usePopup: true,
+        });
+
+        document.getElementById('apple-login-btn')?.addEventListener('click', async () => {
+          try {
+            const res = await AppleID.auth.signIn();
+            const credential = res?.authorization?.id_token;
+            if (!credential) throw new Error('NO_TOKEN');
+
+            const resp = await fetch(resolveApi('/users/login-oauth'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ target: 'APPLE', credential }),
+            });
+            const data = await resp.json();
+            if (data?.code === 1) {
+              location.replace('index.html');
+            } else {
+              alert(data?.errorMessage || 'Apple login failed');
+            }
+          } catch (error) {
+            console.error('Apple login error:', error);
+            alert('Apple login failed: ' + (error.message || error));
+          }
+        });
+      });
+    </script>
+
+    <!-- Naver Login -->
+    <script type="module">
+      import { resolveApi } from './env.js';
+
+      const NAVER_CLIENT_ID = 'OBjP4bgf4zsw_ja6wHlJ';
+      const REDIRECT_URI = window.location.origin + window.location.pathname;
+
+      document.addEventListener('DOMContentLoaded', () => {
+        // Handle OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const code = urlParams.get('code');
+        const state = urlParams.get('state');
+
+        if (code && state) {
+          handleNaverCallback(code, state);
+          return;
+        }
+
+        // Naver login button click handler
+        document.getElementById('naver-login-btn')?.addEventListener('click', () => {
+          const stateToken = 'naver_login_state_' + Date.now();
+          const authorizeUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${NAVER_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&state=${stateToken}&scope=name,email,gender,age,birthday`;
+          window.open(authorizeUrl, 'naverLogin', 'width=600,height=600');
+        });
+      });
+
+      async function handleNaverCallback(code, state) {
+        try {
+          const resp = await fetch(resolveApi('/users/login-oauth'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              target: 'NAVER',
+              credential: JSON.stringify({ code, state, redirectUri: REDIRECT_URI }),
+            }),
+          });
+          const data = await resp.json();
+          if (data?.code === 1) {
+            if (window.opener && !window.opener.closed) {
+              window.opener.location.replace('index.html');
+              window.close();
+            } else {
+              location.replace('index.html');
+            }
+          } else {
+            alert(data?.errorMessage || 'Naver login failed');
+          }
+        } catch {
+          alert('Naver login failed');
+        }
+      }
+    </script>
+  </body>
+</html>

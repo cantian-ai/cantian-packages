@@ -8,59 +8,121 @@
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 
     <script type="module">
-      import LogtoClient from 'https://cdn.jsdelivr.net/npm/@logto/browser@2.2.13/+esm';
+      let cachedAccessToken = null;
+      let cachedExpMs = 0;
 
-      const urlWithoutQuery = window.location.origin + window.location.pathname;
-
-      const logto = new LogtoClient({
-        endpoint: 'https://iam-dev.cantian.ai/',
-        appId: 'wh1f93o66988rv2o2k4wz',
-        resources: ['https://api.cantian.ai'],
-        scopes: ['*:admin'],
-      });
-
-      window.signOut = function signOut() {
-        logto.signOut(urlWithoutQuery);
-      };
-
-      async function checkLogin() {
-        const isAuthenticated = await logto.isAuthenticated();
-        if (isAuthenticated) {
-          const userInfo = await logto.getIdTokenClaims();
-          document.getElementById('sub').innerText = `${userInfo.name || userInfo.email} - ${userInfo.sub}`;
-          const el = document.createElement('iframe');
-          el.src = 'docs.html';
-          el.frameborder = '0';
-          el.className = 'w-full h-full border-0';
-          document.getElementById('api-doc').appendChild(el);
-          document.body.classList.remove('hidden');
-        } else {
-          logto.signIn(urlWithoutQuery);
+      function decodeJwtExpMs(token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          return payload.exp * 1000;
+        } catch {
+          return 0;
         }
       }
 
-      window.onload = async () => {
-        if (window.location.search.includes('code=')) {
-          await logto.handleSignInCallback(window.location.href);
-          window.location.href = urlWithoutQuery;
-        } else {
-          checkLogin();
+      function decodeJwtSub(token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          return payload.sub || '';
+        } catch {
+          return '';
+        }
+      }
+
+      import { resolveApi } from './env.js';
+
+      async function exchangeTokenIfNeeded() {
+        const now = Date.now();
+
+        // token 仍然有效（预留 60s 作为缓冲）
+        if (cachedAccessToken && cachedExpMs - now > 60_000) {
+          return cachedAccessToken;
+        }
+
+        const resp = await fetch(resolveApi('/users/exchange-token'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}',
+          credentials: 'include',
+        });
+
+        const data = await resp.json().catch(() => null);
+
+        // BaseController success shape: { code: 1, data: { accessToken } }
+        if (!data || data.code !== 1 || !data.data?.accessToken) {
+          location.replace('login.html');
+          return null;
+        }
+
+        const accessToken = data.data.accessToken;
+        cachedAccessToken = accessToken;
+        cachedExpMs = decodeJwtExpMs(accessToken);
+        // 显示用户 sub（从 accessToken 中解析）
+        const sub = decodeJwtSub(accessToken);
+        if (sub) {
+          document.getElementById('sub').innerText = sub;
+        }
+        return cachedAccessToken;
+      }
+
+      window.getAccessToken = exchangeTokenIfNeeded;
+
+      window.signOut = async function signOut() {
+        // 清前端缓存（语义正确，且避免并发误用）
+        cachedAccessToken = null;
+        cachedExpMs = 0;
+
+        try {
+          await fetch(resolveApi('/users/logout'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+            credentials: 'include',
+          });
+        } finally {
+          // 依赖后端真正清 cookie，直接回登录页
+          location.replace('login.html');
         }
       };
 
-      window.getAccessToken = async () => {
-        return await logto.getAccessToken('https://api.cantian.ai');
+      window.onload = async () => {
+        // 确认登录态（refreshToken 有效）后再展示 iframe
+        const token = await window.getAccessToken();
+        if (!token) return;
+        // sub 已在 getAccessToken 中解析并写入
+        const el = document.createElement('iframe');
+        // 将当前页面的 hash 透传给 iframe，用于定位具体 API
+        const hash = location.hash || '';
+        el.src = 'docs.html' + hash;
+        el.frameborder = '0';
+        el.className = 'w-full h-full border-0';
+        document.getElementById('api-doc').appendChild(el);
+
+        // 轮询 iframe 内部 hash，同步到父页面 URL（Stoplight 不触发 hashchange）
+        el.addEventListener('load', () => {
+          let lastHash = '';
+          setInterval(() => {
+            try {
+              const iframeHash = el.contentWindow.location.hash;
+              if (iframeHash && iframeHash !== lastHash) {
+                lastHash = iframeHash;
+                if (iframeHash !== location.hash) {
+                  history.replaceState(null, '', iframeHash);
+                }
+              }
+            } catch {
+              // ignore
+            }
+          }, 300);
+        });
+        document.body.classList.remove('hidden');
       };
     </script>
   </head>
   <body class="flex flex-col h-screen hidden">
     <div class="text-white p-4 flex-shrink-0 flex items-center" style="background-color: hsla(218, 32%, 7%, 1)">
       <div class="ml-auto mr-4" id="sub"></div>
-      <div>
-        <button class="text-gray-200 hover:text-white px-4 py-2 font-medium rounded cursor-pointer" onclick="signOut()">
-          Sign out
-        </button>
-      </div>
+      <button class="text-gray-200 hover:text-white px-4 py-2 font-medium rounded cursor-pointer" onclick="signOut()">Sign out</button>
     </div>
     <div id="api-doc" class="flex-1 h-0"></div>
   </body>

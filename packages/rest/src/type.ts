@@ -2,7 +2,6 @@ import 'express';
 
 export type Auth = {
   sub: string;
-  name: string;
   scopes?: string[];
   client_id?: string;
 };

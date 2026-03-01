@@ -29,7 +29,6 @@ export const createControllerRouter = async (options: { controllerDir: string; j
   const allowedMethods = ['get', 'post', 'patch', 'delete'] as const;
   const controllerFiles = glob('**/*.js', { cwd: controllerDir });
   const router = express.Router();
-  router.use(cors());
   router.use(
     json({
       verify: (req, res, buf) => {
@@ -51,7 +50,13 @@ export const createControllerRouter = async (options: { controllerDir: string; j
 
     c.init({ method, path: urlPath });
 
-    router[method](urlPath, createBizHandler(c));
+    const corsOptions = c.corsOptions;
+    if (corsOptions) {
+      router.options(urlPath, cors(corsOptions));
+      router[method](urlPath, cors(corsOptions), createBizHandler(c));
+    } else {
+      router[method](urlPath, createBizHandler(c));
+    }
     console.log(`Route: ${method.toUpperCase()} ${urlPath}`);
   }
   router.use((err, req, res, next) => {

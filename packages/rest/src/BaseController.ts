@@ -1,4 +1,5 @@
 import Ajv, { ValidateFunction } from 'ajv';
+import type { CorsOptions } from 'cors';
 import { Request, Response } from 'express';
 import { createLocalJWKSet, jwtVerify } from 'jose';
 import { JSONSchema } from 'json-schema-to-ts';
@@ -30,6 +31,7 @@ export class BaseController {
   static isPublic?: boolean;
   static scope?: string;
   static skipRateLimit?: boolean;
+  static corsOptions?: CorsOptions = {};
 
   static method: string;
   static path: string;
@@ -187,7 +189,6 @@ export class BaseController {
 
         this.auth = {
           sub: payload.sub as string,
-          name: payload.name as string,
           scopes,
         };
 
