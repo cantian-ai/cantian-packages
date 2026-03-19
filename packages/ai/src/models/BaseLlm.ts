@@ -27,8 +27,17 @@ const DEFAULT_MAX_ROUNDS = 10;
 export class BaseLlm<T extends Options = Options> {
   public semaphore: Semaphore;
 
-  constructor(public url: string, public apiKey: string, public model: string) {
+  constructor(
+    public url: string,
+    public apiKey: string,
+    public model: string,
+    private readonly defaultModelOptions?: Partial<T>,
+  ) {
     this.semaphore = new Semaphore(10);
+  }
+
+  protected withDefaultModelOptions(options?: Partial<T>) {
+    return this.mergeOptions(this.defaultModelOptions, options) as T;
   }
 
   async *stream(messages: InputItem[], options?: T): AsyncGenerator<ModelChunk> {
@@ -80,8 +89,9 @@ export class BaseLlm<T extends Options = Options> {
     } as AgentUsageChunk satisfies AgentUsageChunk;
     const startedTimestamp = Date.now();
     do {
+      const mergedModelOptions = this.withDefaultModelOptions(modelOptions as T);
       const response = this.stream(input, {
-        ...(modelOptions as T),
+        ...mergedModelOptions,
         finalRound: roundIndex === maxRounds - 1,
         signal: options?.signal,
       });
@@ -116,7 +126,7 @@ export class BaseLlm<T extends Options = Options> {
       if (toolCalls.length) {
         for (const toolCall of toolCalls) {
           yield { ...toolCall, type: 'TOOL_CALLING' } satisfies ToolCallingChunk;
-          const it = executeTool(toolCall, modelOptions!.tools!, options?.context);
+          const it = executeTool(toolCall, mergedModelOptions.tools!, options?.context);
           let result: {
             error?: any;
             result?: any;
@@ -149,5 +159,23 @@ export class BaseLlm<T extends Options = Options> {
       saveAgentUsage(agentUsage, options.logMeta);
     }
     yield agentUsage;
+  }
+
+  private mergeOptions(base?: any, override?: any) {
+    if (base === undefined) return override;
+    if (override === undefined) return base;
+    if (Array.isArray(base) || Array.isArray(override)) return override;
+    if (!this.isPlainObject(base) || !this.isPlainObject(override)) return override;
+
+    const merged: Record<string, any> = { ...base };
+    for (const [key, value] of Object.entries(override)) {
+      if (value === undefined) continue;
+      merged[key] = this.mergeOptions(merged[key], value);
+    }
+    return merged;
+  }
+
+  private isPlainObject(value: unknown): value is Record<string, any> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 }

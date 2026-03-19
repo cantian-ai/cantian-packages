@@ -4,7 +4,11 @@ export type ErrorResponseBody = {
 };
 
 export class RestError {
-  constructor(public statusCode: number, public errorMessage: string, public errorData?: any) {}
+  constructor(
+    public statusCode: number,
+    public errorMessage: string,
+    public errorData?: any,
+  ) {}
 
   static internal(errorMessage?: string, errorData?: ErrorResponseBody['errorData']) {
     return new RestError(500, errorMessage || 'Internal server error.', errorData);
@@ -36,5 +40,9 @@ export class RestError {
 
   static tooManyRequests(errorMessage?: string, errorData?: ErrorResponseBody['errorData']) {
     return new RestError(429, errorMessage || 'Too many requests.', errorData);
+  }
+
+  static unprocessableEntity(errorMessage?: string, errorData?: ErrorResponseBody['errorData']) {
+    return new RestError(422, errorMessage || 'Unprocessable entity.', errorData);
   }
 }

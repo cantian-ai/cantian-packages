@@ -2,6 +2,32 @@
 
 ## 使用
 
+### 八字排盘
+
+#### 农历排盘
+
+```typescript
+import { buildBaziFromLunar } from 'cantian-tymext';
+
+// lunarTime: 农历时间字符串（不带时区）
+// sect: 1 表示 23:00-23:59 日干支为明天，2 表示 23:00-23:59 日干支为当天（默认 2）
+// gender: 0 表示女性，1 表示男性（默认 1）
+const bazi = buildBaziFromLunar({ lunarTime: '2024-01-15 10:30:00', sect: 2, gender: 1 });
+console.log(bazi);
+```
+
+#### 公历排盘
+
+```typescript
+import { buildBaziFromSolar } from 'cantian-tymext';
+
+// solarTime: 公历时间字符串（不带时区）
+// sect: 1 表示 23:00-23:59 日干支为明天，2 表示 23:00-23:59 日干支为当天（默认 2）
+// gender: 0 表示女性，1 表示男性（默认 1）
+const bazi = buildBaziFromSolar({ solarTime: '2024-02-24 10:30:00', sect: 2, gender: 1 });
+console.log(bazi);
+```
+
 ### 刑冲合会
 
 ```typescript

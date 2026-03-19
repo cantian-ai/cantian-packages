@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -6,6 +6,20 @@
     <title>Login</title>
     <!-- Allow OAuth popup to communicate back via postMessage -->
     <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups" />
+
+    <!-- 1. 添加全局变量 AliyunCaptchaConfig -->
+    <script>
+      window.AliyunCaptchaConfig = {
+        // 必填，验证码示例所属地区，支持中国内地（cn）、新加坡（sgp）
+        region: 'sgp',
+        // 必填，身份标。开通阿里云验证码 2.0 后，在控制台概览页面的实例基本信息卡片区域获取
+        prefix: 'p5wa7x', // 请替换为实际的身份标
+      };
+    </script>
+
+    <!-- 2. 动态引入验证码 JS -->
+    <script type="text/javascript" src="https://o.alicdn.com/captcha-frontend/aliyunCaptcha/AliyunCaptcha.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" defer></script>
@@ -14,9 +28,8 @@
       async function handleGoogleCredential(response) {
         const credential = response?.credential;
         if (!credential) return;
-        const { resolveApi } = await import('./env.js');
         try {
-          const resp = await fetch(resolveApi('/users/login-oauth'), {
+          const resp = await fetch('https://openapi-dev.cantian.ai/rest/users/login-oauth', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -41,7 +54,12 @@
   </head>
   <body class="flex items-center justify-center h-screen bg-[#f7f8fa]">
     <!-- Google config -->
-    <div id="g_id_onload" data-client_id="827576775449-iv23fpvogbjfjk14ul68a9kal9dtjl7o.apps.googleusercontent.com" data-callback="handleGoogleCredential" data-auto_prompt="false"></div>
+    <div
+      id="g_id_onload"
+      data-client_id="827576775449-iv23fpvogbjfjk14ul68a9kal9dtjl7o.apps.googleusercontent.com"
+      data-callback="handleGoogleCredential"
+      data-auto_prompt="false"
+    ></div>
 
     <div class="bg-white rounded-md shadow-sm border border-gray-200 p-6 w-96 flex flex-col gap-4">
       <div class="text-lg font-medium text-gray-900 text-center">Sign in</div>
@@ -53,6 +71,9 @@
         class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         placeholder="Email"
       />
+
+      <!-- 3. 预留的验证码元素（隐藏） -->
+      <div id="captcha-element" style="display: none"></div>
 
       <div class="flex gap-2">
         <input
@@ -93,14 +114,25 @@
           class="w-full h-11 border border-gray-300 rounded-md bg-white hover:bg-gray-50 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
         >
           <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+            <path
+              d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"
+            />
           </svg>
           <span class="text-sm font-medium text-gray-700">Continue with Apple</span>
         </button>
 
         <!-- Google -->
         <div class="w-full flex justify-center">
-          <div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="continue_with" data-shape="rectangular" data-logo_alignment="left" data-width="336"></div>
+          <div
+            class="g_id_signin"
+            data-type="standard"
+            data-size="large"
+            data-theme="outline"
+            data-text="continue_with"
+            data-shape="rectangular"
+            data-logo_alignment="left"
+            data-width="336"
+          ></div>
         </div>
 
         <!-- Naver -->
@@ -109,7 +141,7 @@
           class="w-full h-11 border border-gray-300 rounded-md bg-[#03C75A] hover:bg-[#02b350] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
         >
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="white">
-            <path d="M3.5 3.5v17h3.3l5.4-8.6V20.5h3.3v-17h-3.3l-5.4 8.6V3.5z"/>
+            <path d="M3.5 3.5v17h3.3l5.4-8.6V20.5h3.3v-17h-3.3l-5.4 8.6V3.5z" />
           </svg>
           <span class="text-sm font-medium text-white">Continue with Naver</span>
         </button>
@@ -118,17 +150,59 @@
 
     <!-- Main Application Logic -->
     <script type="module">
-      import { resolveApi } from './env.js';
+      // CAPTCHA state
+      let captcha;
+      let captchaVerifyParam = null;
+
+      // 3. 调用初始化方法进行验证码初始化
+      window.initAliyunCaptcha({
+        // 场景 ID。在验证码控制台获取
+        SceneId: '13ro31me', // 请替换为实际的场景 ID
+        // 验证码模式：popup 弹出式，embed 嵌入式
+        mode: 'popup',
+        // 预留的验证码元素
+        element: '#captcha-element',
+        // 触发验证码的元素
+        button: '#send-btn',
+        // 验证通过回调
+        success: function (captchaVerifyParamResult) {
+          console.log('验证码验证通过', captchaVerifyParamResult);
+          captchaVerifyParam = captchaVerifyParamResult;
+          // 验证通过后发送验证码
+          sendCodeWithCaptcha();
+        },
+        // 验证失败回调
+        fail: function (result) {
+          console.error('验证码验证失败', result);
+          alert('CAPTCHA verification failed, please try again');
+          enableSendBtn();
+        },
+        // 绑定实例
+        getInstance: function (instance) {
+          captcha = instance;
+        },
+        // 滑块样式
+        slideStyle: {
+          width: 360,
+          height: 40,
+        },
+        // 语言
+        language: 'cn',
+        // 网络异常提示
+        showErrorTip: true,
+        // 验证成功后延迟
+        delayBeforeSuccess: true,
+      });
 
       // Check if already logged in
-      fetch(resolveApi('/users/exchange-token'), {
+      fetch('https://openapi-dev.cantian.ai/rest/users/exchange-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',
         credentials: 'include',
       })
-        .then(r => r.json())
-        .then(d => d?.code === 1 && location.replace('index.html'))
+        .then((r) => r.json())
+        .then((d) => d?.code === 1 && location.replace('index.html'))
         .catch(() => {});
 
       // State management
@@ -142,6 +216,11 @@
       const sendBtn = document.getElementById('send-btn');
       const loginBtn = document.getElementById('login-btn');
 
+      function enableSendBtn() {
+        sending = false;
+        updateSendBtn();
+      }
+
       function updateLoginBtn() {
         loginBtn.disabled = !(emailInput.value && codeInput.value) || loggingIn;
       }
@@ -149,7 +228,7 @@
       function updateSendBtn() {
         if (sending) {
           sendBtn.disabled = true;
-          sendBtn.innerText = 'Sending...';
+          sendBtn.innerHTML = `<svg class="animate-spin h-4 w-4 text-gray-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
           return;
         }
         if (countdown > 0) {
@@ -166,17 +245,43 @@
         const email = emailInput.value.trim();
         if (!email) return;
 
-        sending = true;
-        updateSendBtn();
+        // Trigger CAPTCHA verification
+        if (captcha) {
+          sending = true;
+          updateSendBtn();
+          captcha.show();
+        } else {
+          alert('CAPTCHA not initialized, please refresh the page');
+        }
+      }
+
+      async function sendCodeWithCaptcha() {
+        if (!captchaVerifyParam) {
+          alert('CAPTCHA verification required');
+          enableSendBtn();
+          return;
+        }
+
+        const email = emailInput.value.trim();
+        if (!email) {
+          enableSendBtn();
+          return;
+        }
+
         try {
-          const resp = await fetch(resolveApi('/users/send-email-code'), {
+          const resp = await fetch('https://openapi-dev.cantian.ai/rest/users/send-email-code', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, purpose: 'LOGIN' }),
+            body: JSON.stringify({
+              email,
+              purpose: 'LOGIN',
+              captcha: captchaVerifyParam,
+            }),
           });
           const data = await resp.json();
           if (data?.code !== 1) {
             alert(data?.errorMessage || 'Failed to send code');
+            enableSendBtn();
             return;
           }
           countdown = 60;
@@ -186,9 +291,13 @@
             updateSendBtn();
             if (countdown <= 0) clearInterval(timer);
           }, 1000);
+        } catch (error) {
+          console.error('Send code error:', error);
+          alert('Failed to send code');
         } finally {
-          sending = false;
-          updateSendBtn();
+          // Clear captcha param after use
+          captchaVerifyParam = null;
+          enableSendBtn();
         }
       }
 
@@ -201,7 +310,7 @@
         loginBtn.innerText = 'Logging in...';
         updateLoginBtn();
         try {
-          const resp = await fetch(resolveApi('/users/login-email-code'), {
+          const resp = await fetch('https://openapi-dev.cantian.ai/rest/users/login-email-code', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -229,8 +338,6 @@
 
     <!-- Apple Login -->
     <script type="module">
-      import { resolveApi } from './env.js';
-
       document.addEventListener('DOMContentLoaded', () => {
         if (!window.AppleID) return;
 
@@ -249,7 +356,7 @@
             const credential = res?.authorization?.id_token;
             if (!credential) throw new Error('NO_TOKEN');
 
-            const resp = await fetch(resolveApi('/users/login-oauth'), {
+            const resp = await fetch('https://openapi-dev.cantian.ai/rest/users/login-oauth', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               credentials: 'include',
@@ -271,8 +378,6 @@
 
     <!-- Naver Login -->
     <script type="module">
-      import { resolveApi } from './env.js';
-
       const NAVER_CLIENT_ID = 'OBjP4bgf4zsw_ja6wHlJ';
       const REDIRECT_URI = window.location.origin + window.location.pathname;
 
@@ -297,7 +402,7 @@
 
       async function handleNaverCallback(code, state) {
         try {
-          const resp = await fetch(resolveApi('/users/login-oauth'), {
+          const resp = await fetch('https://openapi-dev.cantian.ai/rest/users/login-oauth', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',

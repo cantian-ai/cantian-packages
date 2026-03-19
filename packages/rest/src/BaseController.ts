@@ -112,8 +112,6 @@ export class BaseController {
         this.sendSseHeader();
         try {
           await this.run();
-        } catch (error) {
-          this.writeSseError(error);
         } finally {
           this.res.end();
         }
@@ -188,6 +186,7 @@ export class BaseController {
         }
 
         this.auth = {
+          ...payload,
           sub: payload.sub as string,
           scopes,
         };

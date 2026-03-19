@@ -18,6 +18,7 @@ const COST_DOLLAR_PER_M = 0.6;
 
 export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
   async *stream(messages: InputItem[], options?: DeepseekModelOptions): AsyncGenerator<ModelChunk> {
+    options = this.withDefaultModelOptions(options);
     const [, release] = await this.semaphore.acquire();
     try {
       const [url, init] = this.buildResponseRequestParams(messages, options);

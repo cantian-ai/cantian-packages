@@ -21,6 +21,7 @@ type ToolCallAcc = {
 
 export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
   async *stream(messages: InputItem[], options?: CompletionModelOptions): AsyncGenerator<ModelChunk> {
+    options = this.withDefaultModelOptions(options);
     const [, release] = await this.semaphore.acquire();
     const startedAt = Date.now();
 
@@ -46,6 +47,20 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
         if (chunk.data === '[DONE]') break;
 
         const data = JSON.parse(chunk.data);
+
+        /** ---------- usage ---------- */
+        if (data.usage) {
+          usageContent.totalTokens = data.usage.total_tokens || 0;
+          usageContent.inputUsage = {
+            inputTokens: data.usage.prompt_tokens || 0,
+            cachedTokens: data.usage.prompt_tokens_details?.cached_tokens || 0,
+          };
+          usageContent.outputUsage = {
+            outputTokens: data.usage.completion_tokens,
+            reasoningTokens: 0,
+          };
+        }
+
         const choice = data.choices?.[0];
         if (!choice) continue;
 
@@ -113,7 +128,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
           usageContent.output = outputs;
         }
 
-        if (choice.finish_reason === 'stop') {
+        if (choice.finish_reason === 'stop' || choice.finish_reason === 'length') {
           yield {
             type: 'MESSAGE',
             role: assistantRole,
@@ -129,16 +144,6 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
           ];
         }
 
-        /** ---------- usage ---------- */
-        usageContent.totalTokens = data.usage?.total_tokens || 0;
-        usageContent.inputUsage = {
-          inputTokens: data.usage?.prompt_tokens || 0,
-          cachedTokens: data.usage?.prompt_tokens_details?.cached_tokens || 0,
-        };
-        usageContent.outputUsage = {
-          outputTokens: data.usage?.completion_tokens,
-          reasoningTokens: 0,
-        };
       }
 
       usageContent.totalCostMs = Date.now() - startedAt;

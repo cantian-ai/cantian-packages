@@ -12,6 +12,6 @@
     "prepublishOnly": "rm -rf dist && tsc"
   },
   "dependencies": {
-    "tyme4ts": "^1.4.1"
+    "tyme4ts": "^1.4.4"
   }
 }

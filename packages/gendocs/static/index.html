@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -29,6 +29,15 @@
         }
       }
 
+      function decodeJwtScope(token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          return payload.scope || '';
+        } catch {
+          return '';
+        }
+      }
+
       import { resolveApi } from './env.js';
 
       async function exchangeTokenIfNeeded() {
@@ -39,7 +48,7 @@
           return cachedAccessToken;
         }
 
-        const resp = await fetch(resolveApi('/users/exchange-token'), {
+        const resp = await fetch('https://openapi-dev.cantian.ai/rest/users/exchange-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: '{}',
@@ -62,6 +71,8 @@
         if (sub) {
           document.getElementById('sub').innerText = sub;
         }
+        // 设置用户 scope（从 accessToken 中解析）
+        window.userScope = decodeJwtScope(accessToken);
         return cachedAccessToken;
       }
 
@@ -73,7 +84,7 @@
         cachedExpMs = 0;
 
         try {
-          await fetch(resolveApi('/users/logout'), {
+          await fetch('https://openapi-dev.cantian.ai/rest/users/logout', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: '{}',
@@ -122,7 +133,9 @@
   <body class="flex flex-col h-screen hidden">
     <div class="text-white p-4 flex-shrink-0 flex items-center" style="background-color: hsla(218, 32%, 7%, 1)">
       <div class="ml-auto mr-4" id="sub"></div>
-      <button class="text-gray-200 hover:text-white px-4 py-2 font-medium rounded cursor-pointer" onclick="signOut()">Sign out</button>
+      <button class="text-gray-200 hover:text-white px-4 py-2 font-medium rounded cursor-pointer" onclick="signOut()">
+        Sign out
+      </button>
     </div>
     <div id="api-doc" class="flex-1 h-0"></div>
   </body>
