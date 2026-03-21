@@ -29,7 +29,15 @@ util.inspect.defaultOptions.depth = 12;
   const completion = new CompletionLlm(
     'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
     process.env.BAILIAN_API_KEY!,
-    'qwen3-max',
+    'qwen3.5-plus',
+    {
+      temperature: 1,
+      extRequestParams: {
+        stream_options: {
+          include_usage: true,
+        },
+      },
+    },
   );
   try {
     for await (const chunk of completion.agenticStream(
@@ -39,7 +47,6 @@ util.inspect.defaultOptions.depth = 12;
       },
       {
         context: { userId: 'abcd' },
-        maxRounds: 2,
         logMeta: { traceId: 'abcdefg' },
       },
     )) {
