@@ -1,8 +1,7 @@
 import { createTraceHandler } from 'cantian-als';
 import cors from 'cors';
 import express, { json, Request, Response } from 'express';
-import { existsSync } from 'node:fs';
-import { glob } from 'node:fs/promises';
+import { existsSync, globSync } from 'node:fs';
 import { BaseController } from './BaseController.js';
 import { RestError } from './RestError.js';
 import { app } from './app.js';
@@ -27,7 +26,6 @@ export const createBizHandler = (c: typeof BaseController) => async (req: Reques
 export const createControllerRouter = async (options: { controllerDir: string; jwks: string }) => {
   const { controllerDir, jwks } = options;
   const allowedMethods = ['get', 'post', 'patch', 'delete'] as const;
-  const controllerFiles = glob('**/*.js', { cwd: controllerDir });
   const router = express.Router();
   router.use(
     json({
@@ -39,9 +37,16 @@ export const createControllerRouter = async (options: { controllerDir: string; j
 
   BaseController.initBase({ jwks });
 
-  for await (const controllerFile of controllerFiles) {
+  const controllerFiles = globSync('**/*.{js,ts}', { cwd: controllerDir });
+  for (const controllerFile of controllerFiles) {
+    if (controllerFile.endsWith('.d.ts')) {
+      continue;
+    }
     const parts = controllerFile.split('/');
-    const method = parts.pop()?.replace('.js', '').toLowerCase() as (typeof allowedMethods)[number];
+    const method = parts
+      .pop()
+      ?.replace(/\.(js|ts)$/i, '')
+      .toLowerCase() as (typeof allowedMethods)[number];
     if (!allowedMethods.includes(method as any)) {
       throw new Error(`The method is invalid for the file ${controllerFile}.`);
     }
@@ -79,6 +84,9 @@ export const registerControllers = async (options: { jwks: string }) => {
   if (existsSync(INIT_FILE)) {
     const { default: init } = await import(INIT_FILE);
     await init();
+    console.log('Inited.');
+  } else {
+    console.log('No init script found.');
   }
 
   if (existsSync(CONTROLLER_DIR)) {

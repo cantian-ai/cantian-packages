@@ -73,6 +73,7 @@ export type UsageChunk = {
 // chunk类型：Agent的usage
 export type AgentUsageChunk = {
   type: 'AGENT_USAGE';
+  tokenUsageId: string;
   totalTokens: number;
   model: string;
   inputUsage: {

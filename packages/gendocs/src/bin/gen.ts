@@ -1,12 +1,13 @@
 import { BaseController } from 'cantian-rest';
 import { globSync, mkdirSync, writeFileSync } from 'fs';
+import { resolve } from 'node:path';
 
-const [, , relativeControllersFolder = 'dist/controllers', OPENAPI_SPEC_PATH = 'tmp/openapi.json'] = process.argv;
-
+const OPENAPI_SPEC_PATH = 'tmp/openapi.json';
+const absoluteControllersFolder = resolve(process.cwd(), process.env.CONTROLLER_DIR || 'dist/controllers');
 const cwd = process.cwd();
-const serviceFolderName = cwd.split('/').pop() as string;
+const serviceFolderName = process.env.SERVICE_NAME || (cwd.split('/').pop() as string);
 
-const controllerFilePaths = globSync(`${relativeControllersFolder}/**/*.js`);
+const controllerFilePaths = globSync(`${absoluteControllersFolder}/**/*.{js,ts}`);
 
 type EndPointObject = {
   tags: string[];
@@ -19,11 +20,14 @@ type EndPointObject = {
 
 const specs: Record<string, Record<string, EndPointObject>> = {};
 for (const controllerFilePath of controllerFilePaths) {
-  const { default: defaultClass }: { default: typeof BaseController } = await import(`${cwd}/${controllerFilePath}`);
+  if (controllerFilePath.endsWith('.d.ts')) {
+    continue;
+  }
+  const { default: defaultClass }: { default: typeof BaseController } = await import(controllerFilePath);
 
   const pathParts = controllerFilePath
-    .replace(relativeControllersFolder + '/', '')
-    .replace(/\.js$/, '')
+    .replace(absoluteControllersFolder + '/', '')
+    .replace(/\.(js|ts)$/i, '')
     .split('/');
   const method = pathParts.pop() as string;
   const apiPath = '/' + pathParts.join('/');

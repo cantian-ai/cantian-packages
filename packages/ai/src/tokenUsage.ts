@@ -1,35 +1,64 @@
 import { mongoClient } from 'cantian-mongodb';
+import { FromSchema, JSONSchema } from 'json-schema-to-ts';
 import { AgentUsageChunk, UsageChunk } from './type.js';
 
-type TokenUsage = {
-  model: string;
-  totalTokens: number;
-  totalCostMs: number;
-  inputUsage: {
-    inputTokens: number;
-    cachedTokens: number;
-  };
-  outputUsage: {
-    outputTokens: number;
-    reasoningTokens: number;
-  };
-  rounds: {
-    input: any;
-    output: any;
-  }[];
-  firstTokenCostMs: number;
-  estimatedCost: number;
-  createdAt: string;
-  updatedAt: string;
-};
+export const tokenUsageModelSchema = {
+  type: 'object',
+  properties: {
+    _id: { type: 'string' },
+    tokenUsageId: { type: 'string' },
+    url: { type: 'string' },
+    model: { type: 'string' },
+    totalTokens: { type: 'number' },
+    totalCostMs: { type: 'number' },
+    inputUsage: {
+      type: 'object',
+      properties: {
+        inputTokens: { type: 'number' },
+        cachedTokens: { type: 'number' },
+      },
+      required: ['inputTokens', 'cachedTokens'],
+      additionalProperties: false,
+    },
+    outputUsage: {
+      type: 'object',
+      properties: {
+        outputTokens: { type: 'number' },
+        reasoningTokens: { type: 'number' },
+      },
+      required: ['outputTokens', 'reasoningTokens'],
+      additionalProperties: false,
+    },
+    rounds: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          input: true,
+          output: true,
+        },
+        required: ['input', 'output'],
+        additionalProperties: false,
+      },
+    },
+    firstTokenCostMs: { type: 'number' },
+    estimatedCost: { type: 'number' },
+    createdAt: { type: 'string' },
+    updatedAt: { type: 'string' },
+  },
+  additionalProperties: true,
+} as const satisfies JSONSchema;
+
+export type TokenUsage = FromSchema<typeof tokenUsageModelSchema>;
 
 const db = mongoClient.db('agent-service');
-const collection = db.collection<TokenUsage>('tokenUsages');
+export const tokenUsageCollection = db.collection<TokenUsage>('tokenUsages');
 
-export const saveModelUsage = async (usageChunk: UsageChunk, meta: any) => {
+export const saveModelUsage = async (usageChunk: UsageChunk, meta: any, url: string) => {
   const now = new Date().toISOString();
   const tokenUsage: TokenUsage = {
     ...meta,
+    url,
     model: usageChunk.model,
     totalTokens: usageChunk.totalTokens,
     firstTokenCostMs: usageChunk.firstTokenCostMs,
@@ -41,13 +70,15 @@ export const saveModelUsage = async (usageChunk: UsageChunk, meta: any) => {
     createdAt: now,
     updatedAt: now,
   };
-  await collection.insertOne(tokenUsage);
+  await tokenUsageCollection.insertOne(tokenUsage);
 };
 
-export const saveAgentUsage = async (agentUsageChunk: AgentUsageChunk, meta: any) => {
+export const saveAgentUsage = async (agentUsageChunk: AgentUsageChunk, meta: any, url: string) => {
   const now = new Date().toISOString();
   const tokenUsage: TokenUsage = {
     ...meta,
+    tokenUsageId: agentUsageChunk.tokenUsageId,
+    url,
     model: agentUsageChunk.model,
     totalTokens: agentUsageChunk.totalTokens,
     firstTokenCostMs: agentUsageChunk.firstTokenCostMs,
@@ -59,5 +90,5 @@ export const saveAgentUsage = async (agentUsageChunk: AgentUsageChunk, meta: any
     createdAt: now,
     updatedAt: now,
   };
-  await collection.insertOne(tokenUsage);
+  await tokenUsageCollection.insertOne(tokenUsage);
 };

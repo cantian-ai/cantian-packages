@@ -6,7 +6,7 @@ import { inspect } from 'node:util';
 
 inspect.defaultOptions.depth = 12;
 
-const { JWKS, ADMIN_KID, PORT = 3001, OPENAPI_SPEC_PATH = 'tmp/openapi.json' } = process.env;
+const { JWKS, PORT = 3001, OPENAPI_SPEC_PATH = 'tmp/openapi.json' } = process.env;
 
 if (!JWKS) {
   throw new Error('The env JWKS or ADMIN_ID is undefined.');

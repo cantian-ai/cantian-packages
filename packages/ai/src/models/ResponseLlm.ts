@@ -2,7 +2,7 @@ import { sse } from 'cantian-request';
 import { JSONSchema } from 'json-schema-to-ts';
 import { saveModelUsage } from '../tokenUsage.js';
 import { InputItem, MessageChunk, ModelCallingChunk, ModelChunk, TokenChunk, ToolCallChunk, UsageChunk } from '../type.js';
-import { filterMessage } from '../util.js';
+import { filterMessage, toolOutputToAiText } from '../util.js';
 import { BaseLlm, Options } from './BaseLlm.js';
 
 type DeepseekModelOptions = {
@@ -24,7 +24,11 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
       const [url, init] = this.buildResponseRequestParams(messages, options);
       const startedAt = Date.now();
       const response = sse(url, init);
-      let usageContent: Partial<UsageChunk> = { type: 'USAGE', model: this.model, input: JSON.parse(init.body as string) };
+      let usageContent: Partial<UsageChunk> = {
+        type: 'USAGE',
+        model: this.model,
+        input: JSON.parse(init.body as string),
+      };
       yield { type: 'MODEL_CALLING', url, init } satisfies ModelCallingChunk;
       for await (const chunk of response) {
         if (chunk) {
@@ -80,7 +84,7 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
       usageContent.totalCostMs = Date.now() - startedAt;
       usageContent.estimatedCost = (COST_DOLLAR_PER_M * (usageContent.totalTokens || 0)) / 1000000;
       if (options?.logMeta) {
-        saveModelUsage(usageContent as UsageChunk, options.logMeta);
+        saveModelUsage(usageContent as UsageChunk, options.logMeta, url);
       }
       yield usageContent as UsageChunk;
     } finally {
@@ -143,22 +147,15 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
             name: message.name,
           };
         case 'TOOL_CALL_OUTPUT':
-          return this.buildToolCallMessage(message.callId, message.error || message.aiText || message.result);
+          return {
+            type: 'function_call_output',
+            call_id: message.callId,
+            output: toolOutputToAiText(message.error || message.aiText || message.result),
+          };
         default:
           throw new Error(`Unexpected message type: ${message.type}`);
       }
     }
     return message;
-  };
-
-  buildToolCallMessage = (callId: string, output: any) => {
-    if (typeof output !== 'string' && !(output instanceof String)) {
-      if (output instanceof Error) {
-        output = `Error: ${output.message}`;
-      } else {
-        output = JSON.stringify(output);
-      }
-    }
-    return { type: 'function_call_output', call_id: callId, output };
   };
 }

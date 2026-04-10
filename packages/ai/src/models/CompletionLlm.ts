@@ -2,7 +2,7 @@ import { sse } from 'cantian-request';
 import { JSONSchema } from 'json-schema-to-ts';
 import { saveModelUsage } from '../tokenUsage.js';
 import { InputItem, MessageChunk, ModelCallingChunk, ModelChunk, TokenChunk, ToolCallChunk, UsageChunk } from '../type.js';
-import { filterMessage } from '../util.js';
+import { filterMessage, toolOutputToAiText } from '../util.js';
 import { BaseLlm, Options } from './BaseLlm.js';
 
 type CompletionModelOptions = {
@@ -143,14 +143,13 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
             },
           ];
         }
-
       }
 
       usageContent.totalCostMs = Date.now() - startedAt;
       usageContent.estimatedCost = (COST_DOLLAR_PER_M * (usageContent.totalTokens || 0)) / 1_000_000;
 
       if (options?.logMeta) {
-        saveModelUsage(usageContent as UsageChunk, options.logMeta);
+        saveModelUsage(usageContent as UsageChunk, options.logMeta, url);
       }
 
       yield usageContent as UsageChunk;
@@ -229,7 +228,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
           return {
             role: 'tool',
             tool_call_id: message.callId,
-            content: typeof message.result === 'string' ? message.result : JSON.stringify(message.result),
+            content: toolOutputToAiText(message.error || message.aiText || message.result),
           };
 
         default:

@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { resolve } from 'node:path';
 import { RestError } from './RestError.js';
 
 export function openApiPathToExpressPath(path) {
@@ -54,6 +55,6 @@ export function sendRestResponse(error, result, res: Response, successCode = 200
   });
 }
 
-export const CONTROLLER_DIR = process.cwd() + '/dist/controllers/';
-export const INIT_FILE = process.cwd() + '/dist/init.js';
+export const CONTROLLER_DIR = resolve(process.cwd(), process.env.CONTROLLER_DIR || 'dist/controllers');
+export const INIT_FILE = resolve(process.cwd(), process.env.INIT_FILE || 'dist/init.js');
 export const REST_BASE_PATH = '/rest';

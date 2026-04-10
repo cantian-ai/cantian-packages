@@ -1,4 +1,17 @@
+import { Ajv, ValidateFunction } from 'ajv';
 import { InputItem, Tool, ToolCallChunk } from './type.js';
+
+const ajv = new Ajv({ allErrors: true, strict: false });
+const validateMap = new WeakMap<Tool, ValidateFunction>();
+
+function getToolValidate(tool: Tool) {
+  if (tool.validate) return tool.validate;
+  const cachedValidate = validateMap.get(tool);
+  if (cachedValidate) return cachedValidate;
+  const compiledValidate = ajv.compile(tool.parameters);
+  validateMap.set(tool, compiledValidate);
+  return compiledValidate;
+}
 
 export async function* executeTool(
   toolCall: ToolCallChunk,
@@ -17,11 +30,10 @@ export async function* executeTool(
   }
 
   try {
-    if (tool.validate) {
-      const valid = tool.validate(json);
-      if (!valid) {
-        return { error: new Error(`Invalid arguments: ${tool.validate.errors?.[0].message}`) };
-      }
+    const validate = getToolValidate(tool);
+    const valid = validate(json);
+    if (!valid) {
+      return { error: new Error(`Invalid arguments: ${validate.errors?.[0].message}`) };
     }
     const handlerResult = tool.handler(json, context);
     let result;
@@ -52,4 +64,18 @@ export function filterMessage(message: InputItem) {
     return !!message.content;
   }
   return true;
+}
+
+export function toolOutputToAiText(output: any) {
+  if (typeof output?.aiText === 'string') {
+    return output.aiText;
+  }
+  if (typeof output !== 'string' && !(output instanceof String)) {
+    if (output instanceof Error) {
+      output = `Error: ${output.message}`;
+    } else {
+      output = JSON.stringify(output);
+    }
+  }
+  return output;
 }

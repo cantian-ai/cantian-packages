@@ -1,12 +1,13 @@
 {
   "name": "cantian-ai",
-  "version": "0.0.42",
+  "version": "0.0.59",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "SKILL_MANUAL.md"
   ],
   "scripts": {
     "prepublishOnly": "rm -rf dist && tsc"

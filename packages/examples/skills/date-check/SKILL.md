@@ -13,7 +13,8 @@ Use this skill for requests such as:
 
 ## Available Resource
 
-- Script: `scripts/get-date.sh`
+- Script: `scripts/get-date.ts`
+- runScript example: `runScript({ "skillName": "date-check", "script": "get-date", "args": ["--iso", "--tz", "Asia/Shanghai"] })`
 - Supported flags:
 - `--date` -> `YYYY-MM-DD`
 - `--time` -> `HH:MM:SS`
@@ -24,7 +25,7 @@ Use this skill for requests such as:
 ## Workflow (Framework Agnostic)
 
 1. Determine the output format requested by the user: date, time, ISO datetime, or timestamp.
-2. Use the runtime's available execution capability to run the bundled script with the matching flags.
+2. Use the `runScript` tool to run the bundled script with the matching flags.
 3. If the user specifies a timezone, pass `--tz <timezone>`.
 4. Return the script output directly, with minimal reformatting.
 

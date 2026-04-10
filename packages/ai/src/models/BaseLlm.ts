@@ -1,4 +1,5 @@
 import { Semaphore } from 'async-mutex';
+import { randomUUID } from 'node:crypto';
 import { saveAgentUsage } from '../tokenUsage.js';
 import {
   AgentChunk,
@@ -20,6 +21,14 @@ export type Options = {
   signal?: AbortSignal;
   finalRound?: boolean;
   logMeta?: any; // Enable trace if truthy
+};
+
+type AgenticStreamOptions = {
+  signal?: AbortSignal;
+  maxRounds?: number;
+  context?: any;
+  logMeta?: any;
+  tokenUsageId?: string;
 };
 
 const DEFAULT_MAX_ROUNDS = 10;
@@ -44,10 +53,10 @@ export class BaseLlm<T extends Options = Options> {
     throw new Error('Method not implemented.');
   }
 
-  // 实际场景中不需要考虑带上tool调用的情况！
   async invoke(input: MessageChunk[], options?: T) {
     let message = '';
     let usage: UsageChunk | undefined;
+    let toolCall: ToolCallChunk | undefined;
     for await (const chunk of this.stream(input, options)) {
       switch (chunk.type) {
         case 'MESSAGE':
@@ -56,22 +65,27 @@ export class BaseLlm<T extends Options = Options> {
         case 'USAGE':
           usage = chunk;
           break;
+        case 'TOOL_CALL':
+          toolCall = chunk;
+          break;
       }
     }
-    return { message, usage };
+    return { toolCall, message, usage };
   }
 
   async *agenticStream(
     messages: any[],
     modelOptions: Omit<T, 'signal' | 'logMeta'>,
-    options?: { signal?: AbortSignal; maxRounds?: number; context?: any; logMeta?: any },
+    options?: AgenticStreamOptions,
   ): AsyncGenerator<AgentChunk> {
     const input: InputItem[] = [...messages];
     let roundIndex = 0;
     let toolCalls: ToolCallChunk[];
     const maxRounds = options?.maxRounds || DEFAULT_MAX_ROUNDS;
+    const tokenUsageId = options?.tokenUsageId || randomUUID();
     const agentUsage = {
       type: 'AGENT_USAGE',
+      tokenUsageId,
       model: this.model,
       totalTokens: 0,
       inputUsage: {
@@ -100,6 +114,8 @@ export class BaseLlm<T extends Options = Options> {
         switch (chunk.type) {
           case 'TOKEN':
           case 'MESSAGE':
+            yield chunk;
+            break;
           case 'MODEL_CALLING':
             yield chunk;
             break;
@@ -156,7 +172,7 @@ export class BaseLlm<T extends Options = Options> {
     } while (toolCalls.length && roundIndex < maxRounds && !options?.signal?.aborted);
     agentUsage.totalCostMs = Date.now() - startedTimestamp;
     if (options?.logMeta) {
-      saveAgentUsage(agentUsage, options.logMeta);
+      saveAgentUsage(agentUsage, options.logMeta, this.url);
     }
     yield agentUsage;
   }

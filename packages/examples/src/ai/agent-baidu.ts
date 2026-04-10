@@ -1,12 +1,9 @@
-import { ResponseLlm, Tool } from 'cantian-ai';
+import { CompletionLlm, Tool } from 'cantian-ai';
 import util from 'node:util';
 
 util.inspect.defaultOptions.depth = 12;
 
 (async () => {
-  // const url = 'https://openapi-dev.cantian.ai/mcp?tools=Get_bazi_from_solar,Get_bazi_from_lunar';
-  // const authorization = process.env.API_KEY_INTERNAL!;
-  // const tools = await listAgentTools({ url, authorization });
   const tools = {
     getDate: {
       name: 'getDate',
@@ -26,10 +23,11 @@ util.inspect.defaultOptions.depth = 12;
     },
   } satisfies Record<string, Tool>;
 
-  const deepseek = new ResponseLlm(
-    'https://ark.cn-beijing.volces.com/api/v3/responses',
-    process.env.DEEPSEEK_API_KEY!,
-    'deepseek-v3-2-251201',
+  const deepseek = new CompletionLlm(
+    'https://qianfan.baidubce.com/v2/chat/completions',
+    process.env.BAIDU_API_KEY!,
+    'deepseek-v3.2',
+    { temperature: 1.3 },
   );
   try {
     for await (const chunk of deepseek.agenticStream(
