@@ -11,10 +11,10 @@
       "path": "packages/request"
     },
     {
-      "path": "packages/rest"
+      "path": "packages/mongodb"
     },
     {
-      "path": "packages/mongodb"
+      "path": "packages/rest"
     },
     {
       "path": "packages/concurrency"

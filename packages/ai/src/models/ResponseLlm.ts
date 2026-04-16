@@ -23,7 +23,7 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
     try {
       const [url, init] = this.buildResponseRequestParams(messages, options);
       const startedAt = Date.now();
-      const response = sse(url, init);
+      const response = sse(url, init, { idleTimeoutMs: 45000 });
       let usageContent: Partial<UsageChunk> = {
         type: 'USAGE',
         model: this.model,
@@ -68,7 +68,7 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
               usageContent.totalTokens = usage.total_tokens;
               usageContent.inputUsage = {
                 inputTokens: usage.input_tokens,
-                cachedTokens: usage.input_tokens_details.cached_tokens,
+                cachedTokens: usage.input_tokens_details?.cached_tokens,
               };
               usageContent.outputUsage = {
                 outputTokens: usage.output_tokens,
@@ -129,6 +129,7 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
               schema: options.textSchema,
             },
           },
+          ...options?.extRequestParams,
         }),
       },
     ] as [string, RequestInit];

@@ -21,6 +21,7 @@ export interface SearchOptions<T extends OriginModel> {
   pagination?: Partial<Pagination>;
   filter?: object;
   sort?: { field: string; order: 1 | -1 }[];
+  projection?: Record<string, 0 | 1>;
   preferPrimary?: boolean;
 }
 
@@ -159,7 +160,7 @@ export function fixRegex(filter: Record<string, any>) {
  * @returns Promise containing results and pagination metadata
  */
 export async function search<T extends OriginModel>(options: SearchOptions<T>): Promise<PaginationResult<T>> {
-  const { collection, filter = {}, sort = [{ field: 'createdAt', order: -1 }], pagination = {} } = options;
+  const { collection, filter = {}, sort = [{ field: 'createdAt', order: -1 }], pagination = {}, projection } = options;
   const limit = pagination.limit ?? 100;
   const offset = pagination.offset ?? 0;
 
@@ -176,6 +177,11 @@ export async function search<T extends OriginModel>(options: SearchOptions<T>): 
     aggregationOptions.readPreference = 'primary';
   }
 
+  const resultPipeline: object[] = [{ $sort: sortObject }, { $skip: offset }, { $limit: limit }];
+  if (projection) {
+    resultPipeline.push({ $project: projection });
+  }
+
   // Use aggregation to get both results and total count in one query
   const [aggregateResult] = await collection
     .aggregate(
@@ -183,7 +189,7 @@ export async function search<T extends OriginModel>(options: SearchOptions<T>): 
         { $match: fixedFilter },
         {
           $facet: {
-            results: [{ $sort: sortObject }, { $skip: offset }, { $limit: limit }],
+            results: resultPipeline,
             totalCount: [{ $count: 'count' }],
           },
         },

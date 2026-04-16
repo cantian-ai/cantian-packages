@@ -8,7 +8,6 @@ import { BaseLlm, Options } from './BaseLlm.js';
 type CompletionModelOptions = {
   temperature?: number;
   textSchema?: JSONSchema;
-  extRequestParams?: any;
 } & Options;
 
 const COST_DOLLAR_PER_M = 0.6;
@@ -27,7 +26,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
 
     try {
       const [url, init] = this.buildCompletionRequestParams(messages, options);
-      const response = sse(url, init);
+      const response = sse(url, init, { idleTimeoutMs: 45000 });
 
       const usageContent: Partial<UsageChunk> = {
         type: 'USAGE',
@@ -39,6 +38,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
 
       let assistantText = '';
       let assistantRole: 'assistant' = 'assistant';
+      let messageEmitted = false;
 
       yield { type: 'MODEL_CALLING', url, init } satisfies ModelCallingChunk;
 
@@ -57,7 +57,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
           };
           usageContent.outputUsage = {
             outputTokens: data.usage.completion_tokens,
-            reasoningTokens: 0,
+            reasoningTokens: data.usage.completion_tokens_details?.reasoning_tokens || 0,
           };
         }
 
@@ -102,10 +102,29 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
         }
 
         /** ---------- finish ---------- */
+        const isMessageFinish =
+          choice.finish_reason === 'tool_calls' || choice.finish_reason === 'stop' || choice.finish_reason === 'length';
+        if (isMessageFinish && !messageEmitted && assistantText.length) {
+          yield {
+            type: 'MESSAGE',
+            role: assistantRole,
+            content: assistantText,
+          } satisfies MessageChunk;
+          messageEmitted = true;
+        }
+
         if (choice.finish_reason === 'tool_calls') {
           const sortedCalls = [...toolCallMap.entries()].sort(([a], [b]) => a - b).map(([, acc]) => acc);
 
           const outputs: any[] = [];
+
+          if (assistantText.length) {
+            outputs.push({
+              type: 'message',
+              role: assistantRole,
+              content: assistantText,
+            });
+          }
 
           for (const acc of sortedCalls) {
             const toolChunk: ToolCallChunk = {
@@ -129,12 +148,6 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
         }
 
         if (choice.finish_reason === 'stop' || choice.finish_reason === 'length') {
-          yield {
-            type: 'MESSAGE',
-            role: assistantRole,
-            content: assistantText,
-          } satisfies MessageChunk;
-
           usageContent.output = [
             {
               type: 'message',

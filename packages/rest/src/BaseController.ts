@@ -4,6 +4,7 @@ import { Request, Response } from 'express';
 import { createLocalJWKSet, jwtVerify } from 'jose';
 import { JSONSchema } from 'json-schema-to-ts';
 import { IncomingHttpHeaders } from 'node:http';
+import { verifyApiKey } from './apiKey.js';
 import { rateLimit } from './rateLimit.js';
 import { RestError } from './RestError.js';
 import { Auth } from './type.js';
@@ -176,26 +177,30 @@ export class BaseController {
         token = token.replace('Bearer ', '');
       }
 
-      // Validate token
       try {
-        const { payload } = await jwtVerify(token, this.constructor.jwts);
+        if (token.startsWith('ct-')) {
+          const apiKeyAuth = await verifyApiKey(token);
+          if (!apiKeyAuth) {
+            throw RestError.unauthorized();
+          }
+          this.auth = apiKeyAuth;
+        } else {
+          // Validate JWT token
+          const { payload } = await jwtVerify(token, this.constructor.jwts);
+          this.auth = {
+            ...payload,
+            sub: payload.sub as string,
+            scopes: (payload.scope as string | undefined)?.split(' '),
+          };
+        }
 
-        const scopes = (payload.scope as string | undefined)?.split(' ');
-        if (this.constructor.scope && !scopes?.includes(this.constructor.scope)) {
+        if (this.constructor.scope && !this.auth.scopes?.includes(this.constructor.scope)) {
           throw RestError.forbidden();
         }
-
-        this.auth = {
-          ...payload,
-          sub: payload.sub as string,
-          scopes,
-        };
-
         if (!this.source) {
-          this.source = payload.client_id as string;
+          this.source = this.auth.client_id as string;
         }
-
-        if (scopes?.includes('*:admin')) {
+        if (this.auth.scopes?.includes('*:admin')) {
           this.auth.sub = (this.req.headers['x-personate-sub'] as string) || this.auth.sub;
         }
       } catch (error) {

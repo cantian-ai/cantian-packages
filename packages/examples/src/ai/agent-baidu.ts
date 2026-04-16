@@ -27,11 +27,18 @@ util.inspect.defaultOptions.depth = 12;
     'https://qianfan.baidubce.com/v2/chat/completions',
     process.env.BAIDU_API_KEY!,
     'deepseek-v3.2',
-    { temperature: 1.3 },
+    {
+      temperature: 1.3,
+      extRequestParams: {
+        web_search: {
+          enable: true,
+        },
+      },
+    },
   );
   try {
     for await (const chunk of deepseek.agenticStream(
-      [{ role: 'user', content: '今天日期？' }],
+      [{ role: 'user', content: '今天日期和天气？' }],
       {
         tools,
       },

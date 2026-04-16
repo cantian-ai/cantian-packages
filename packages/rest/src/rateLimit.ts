@@ -1,5 +1,5 @@
-import { MongoClient } from 'mongodb';
 import { RestError } from './RestError.js';
+import { db } from './db.js';
 
 type RateLimitModel = {
   _id: string;
@@ -13,13 +13,6 @@ type AlertModel = {
   updatedAt: string;
 };
 
-const mongoClient = new MongoClient(process.env.MONGODB_URL!, {
-  connectTimeoutMS: 3000,
-  socketTimeoutMS: 3000,
-  rejectUnauthorized: false,
-});
-
-const db = mongoClient.db('rest');
 const rateLimitCollection = db.collection<RateLimitModel>('rate-limit');
 const alertCollection = db.collection<AlertModel>('alert');
 

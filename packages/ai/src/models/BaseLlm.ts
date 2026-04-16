@@ -21,6 +21,7 @@ export type Options = {
   signal?: AbortSignal;
   finalRound?: boolean;
   logMeta?: any; // Enable trace if truthy
+  extRequestParams?: any;
 };
 
 type AgenticStreamOptions = {

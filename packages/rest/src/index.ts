@@ -1,6 +1,7 @@
 import * as express from 'express';
 
 export * from './app.js';
+export * from './apiKey.js';
 export * from './BaseController.js';
 export * from './handlers.js';
 export * from './RestError.js';

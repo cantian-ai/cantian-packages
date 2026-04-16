@@ -33,7 +33,10 @@ export async function* executeTool(
     const validate = getToolValidate(tool);
     const valid = validate(json);
     if (!valid) {
-      return { error: new Error(`Invalid arguments: ${validate.errors?.[0].message}`) };
+      const firstError = validate.errors?.[0];
+      return {
+        error: new Error(`Invalid arguments at "${firstError?.instancePath || '/'}": ${firstError?.message}`),
+      };
     }
     const handlerResult = tool.handler(json, context);
     let result;
