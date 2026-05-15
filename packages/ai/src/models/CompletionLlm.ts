@@ -1,11 +1,23 @@
 import { sse } from 'cantian-request';
 import { JSONSchema } from 'json-schema-to-ts';
 import { saveModelUsage } from '../tokenUsage.js';
-import { InputItem, MessageChunk, ModelCallingChunk, ModelChunk, TokenChunk, ToolCallChunk, UsageChunk } from '../type.js';
+import {
+  InputItem,
+  MessageChunk,
+  ModelCallingChunk,
+  ModelChunk,
+  ReasoningTokenChunk,
+  TokenChunk,
+  ToolCallChunk,
+  UsageChunk,
+} from '../type.js';
 import { filterMessage, toolOutputToAiText } from '../util.js';
 import { BaseLlm, Options } from './BaseLlm.js';
 
 type CompletionModelOptions = {
+  reasoning?: {
+    effort: 'minimal' | 'low' | 'medium' | 'high';
+  };
   temperature?: number;
   textSchema?: JSONSchema;
 } & Options;
@@ -72,7 +84,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
         }
 
         /** ---------- text token ---------- */
-        if (typeof delta.content === 'string' && delta.content.length) {
+        if (delta.content?.length) {
           if (usageContent.firstTokenCostMs === undefined) {
             usageContent.firstTokenCostMs = Date.now() - startedAt;
           }
@@ -83,6 +95,14 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
             type: 'TOKEN',
             delta: delta.content,
           } satisfies TokenChunk;
+        }
+
+        /** ---------- reasoning token ---------- */
+        if (delta.reasoning_content?.length) {
+          yield {
+            type: 'REASONING_TOKEN',
+            delta: delta.reasoning_content,
+          } satisfies ReasoningTokenChunk;
         }
 
         /** ---------- tool_calls delta ---------- */
@@ -191,6 +211,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
         body: JSON.stringify({
           model: this.model,
           stream: true,
+          reasoning: options?.reasoning,
           temperature: options?.temperature,
           messages: messages.map(this.parseInputMessage),
           tools: tools

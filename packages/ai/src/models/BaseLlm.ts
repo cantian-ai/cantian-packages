@@ -114,6 +114,7 @@ export class BaseLlm<T extends Options = Options> {
       for await (const chunk of response) {
         switch (chunk.type) {
           case 'TOKEN':
+          case 'REASONING_TOKEN':
           case 'MESSAGE':
             yield chunk;
             break;

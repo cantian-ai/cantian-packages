@@ -92,6 +92,7 @@ agenticStream(
 
 - `MODEL_CALLING`: 已发起模型请求（`url`, `init`）
 - `TOKEN`: 文本增量（`delta`）
+- `REASONING_TOKEN`: 推理增量（`delta`）
 - `MESSAGE`: 本轮完整回复
 - `TOOL_CALL`: 模型请求调用工具
 - `TOOL_CALLING`: 开始执行工具

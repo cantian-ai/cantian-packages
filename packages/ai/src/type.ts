@@ -45,6 +45,12 @@ export type TokenChunk = {
   delta: string;
 };
 
+// chunk类型：收到一段推理token（例如 chat.completions 中的 reasoning_content）
+export type ReasoningTokenChunk = {
+  type: 'REASONING_TOKEN';
+  delta: string;
+};
+
 export type AgenticToolToken = {
   type: 'AGENTIC_TOOL_TOKEN';
   data: any;
@@ -99,7 +105,7 @@ export type Tool<Context = any, Result = any> = {
   toAiText?: (result: any, context: Context, args) => string | Promise<string>;
 };
 
-export type ModelChunk = ModelCallingChunk | TokenChunk | MessageChunk | ToolCallChunk | UsageChunk;
+export type ModelChunk = ModelCallingChunk | TokenChunk | ReasoningTokenChunk | MessageChunk | ToolCallChunk | UsageChunk;
 export type AgentChunk = ModelChunk | AgenticToolToken | ToolCallingChunk | ToolCallOutputChunk | AgentUsageChunk;
 
 export {};
