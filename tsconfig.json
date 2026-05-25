@@ -38,6 +38,9 @@
       "path": "packages/liuyao"
     },
     {
+      "path": "packages/bazi"
+    },
+    {
       "path": "packages/examples"
     }
   ]

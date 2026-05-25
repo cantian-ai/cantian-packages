@@ -411,7 +411,7 @@ const grabGuoyinguiren = (dayGan: string, yearGan: string, zhi: string) => {
 };
 
 // 三奇贵人 - 流年里不算
-const SANQIGUIREN_MAP = [/甲.*戊.*庚|庚.*戊.*甲/, /乙.*丙.*丁|丁.*丙.*乙/, /壬.*癸.*辛｜辛.*癸.*壬/];
+const SANQIGUIREN_MAP = [/甲.*戊.*庚|庚.*戊.*甲/, /乙.*丙.*丁|丁.*丙.*乙/, /壬.*癸.*辛|辛.*癸.*壬/];
 const grabSanqiguiren = (bazi: string) => {
   for (const combo of SANQIGUIREN_MAP) {
     if (combo.test(bazi)) {
