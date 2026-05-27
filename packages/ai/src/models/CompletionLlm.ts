@@ -49,6 +49,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
       const toolCallMap = new Map<number, ToolCallAcc>();
 
       let assistantText = '';
+      let assistantReasoning = '';
       let assistantRole: 'assistant' = 'assistant';
       let messageEmitted = false;
 
@@ -99,6 +100,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
 
         /** ---------- reasoning token ---------- */
         if (delta.reasoning_content?.length) {
+          assistantReasoning += delta.reasoning_content;
           yield {
             type: 'REASONING_TOKEN',
             delta: delta.reasoning_content,
@@ -146,12 +148,13 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
             });
           }
 
-          for (const acc of sortedCalls) {
+          for (const [index, acc] of sortedCalls.entries()) {
             const toolChunk: ToolCallChunk = {
               type: 'TOOL_CALL',
               callId: acc.id!,
               name: acc.name!,
               arguments: acc.arguments ?? '',
+              reasoningContent: index === 0 && assistantReasoning.length ? assistantReasoning : undefined,
             };
 
             yield toolChunk;
@@ -246,6 +249,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
         case 'TOOL_CALL':
           return {
             role: 'assistant',
+            reasoning_content: message.reasoningContent,
             tool_calls: [
               {
                 id: message.callId,
