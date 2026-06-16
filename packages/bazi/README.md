@@ -8,6 +8,96 @@
 npm i cantian-bazi
 ```
 
+## 常见业务场景
+
+### 展开十步大运
+
+`getDecadeFortuneStart()` 返回起运方向、起运时间和第一步大运干支。十步大运可以在调用侧按 10 年一段展开。`datetime` 需与 `timeOffsetAt` 使用同一时间体系；下面示例不传 `timeOffsetAt`，默认按东八区标准时间计算：
+
+```ts
+import { Datetime, SixtyCycleTime } from 'cantian-bazi';
+
+const birth = SixtyCycleTime.fromDatetime({
+  datetime: new Datetime({ year: 1986, month: 9, day: 9, hour: 7, minute: 49 }),
+});
+
+const gender: 0 | 1 = 1;
+const start = birth.getDecadeFortuneStart(gender);
+const step = start.forward ? 1 : -1;
+
+const decades = Array.from({ length: 10 }, (_, index) => {
+  const startDatetime = start.startDatetime.add({ year: index * 10 });
+  const endDatetime = start.startDatetime.add({ year: (index + 1) * 10 });
+  const sixtyCycle = start.startSixtyCycle.next(step * index);
+
+  return {
+    index,
+    name: sixtyCycle.getName(),
+    sixtyCycle,
+    startDatetime,
+    endDatetime,
+  };
+});
+```
+
+### 大运内按严格起止时间展开流年、流月、流日、流时
+
+如果产品要展示严格时间区间，可以用 `split()` 按柱数切割任意 `[startDatetime, endDatetime)`。下面示例复用上文的 `birth` 和 `decades`：
+
+```ts
+const splitRange = (startDatetime: Datetime, endDatetime: Datetime, pillarCount: 1 | 2 | 3 | 4) => {
+  const starts = SixtyCycleTime.split({
+    startDatetime,
+    endDatetime,
+    pillarCount,
+    timeOffsetAt: birth.timeOffsetAt,
+    dayAtMidnight: birth.dayAtMidnight,
+  });
+
+  return starts.map((start, index) => ({
+    start,
+    endDatetime: starts[index + 1]?.datetime ?? endDatetime,
+  }));
+};
+
+const firstDecade = decades[0]!;
+const liuNian = splitRange(firstDecade.startDatetime, firstDecade.endDatetime, 1);
+const liuYue = splitRange(liuNian[0]!.start.datetime, liuNian[0]!.endDatetime, 2);
+const liuRi = splitRange(liuYue[0]!.start.datetime, liuYue[0]!.endDatetime, 3);
+const liuShi = splitRange(liuRi[0]!.start.datetime, liuRi[0]!.endDatetime, 4);
+```
+
+### 按完整干支年展示流年
+
+如果产品只按起止年份展示大运，例如“2026 年起运”，但流年、流月仍要按完整干支年展开，可以直接从该年的立春创建年度起点。下面示例复用上文的 `birth`：
+
+```ts
+import { SolarTerm } from 'cantian-bazi';
+
+const timeOffsetAt = birth.timeOffsetAt;
+const yearStart = SixtyCycleTime.fromSolarTerm({
+  solarTerm: new SolarTerm(2026, SolarTerm.INDEX.立春),
+  timeOffsetAt,
+});
+const yearEnd = yearStart.nextStart({ pillarCount: 1 });
+
+const months = SixtyCycleTime.split({
+  startDatetime: yearStart.datetime,
+  endDatetime: yearEnd.datetime,
+  pillarCount: 2,
+  timeOffsetAt,
+});
+```
+
+### 展示起运说明
+
+`getDecadeFortuneStart()` 也会返回起运所在的“节”和该“节”对应的同体系时间，可以直接生成“清明后 18 天交大运”这类文案：
+
+```ts
+const termText = `${start.startSolarTerm.getName()}后${start.startDatetime.diffDays(start.startSolarTermDatetime)}天 交大运`;
+const ageText = `出生后${start.yearCount}年${start.monthCount}月${start.dayCount}天${start.hourCount}时${start.minuteCount}分起运`;
+```
+
 ## Bazi
 
 ### `Bazi.fromName(name)`
@@ -31,48 +121,6 @@ import { Bazi } from 'cantian-bazi';
 
 const bazi = Bazi.fromName('乙巳己丑戊申甲寅');
 console.log(bazi.getName());
-```
-
-### `bazi.getDecadeFortuneStart(timestamp, gender)`
-
-计算起运方向、起运换算量和首步大运干支。
-
-#### 1. 参数说明
-
-- `timestamp: number`
-  出生时间戳（毫秒）。
-- `gender: 0 | 1`
-  `0` 女，`1` 男。
-
-#### 2. 返回说明
-
-- `{ forward: boolean; yearCount: number; monthCount: number; dayCount: number; hourCount: number; minuteCount: number; targetSolarTerm: SolarTerm; startPillar: string }`
-  - `forward: boolean`
-    是否顺排大运（`true` 顺排，`false` 逆排）。
-  - `yearCount: number`
-    起运增量里的“年”部分（按 `3天=1年` 折算）。
-  - `monthCount: number`
-    起运增量里的“月”部分（按 `6小时=1月` 折算）。
-  - `dayCount: number`
-    起运增量里的“日”部分（按 `12分钟=1日` 折算）。
-  - `hourCount: number`
-    起运增量里的“时”部分（按 `30秒=1时` 折算）。
-  - `minuteCount: number`
-    起运增量里的“分”部分（秒再折算成分钟值）。
-  - `targetSolarTerm: SolarTerm`
-    起运换算所使用的目标“节”对象。
-  - `startPillar: string`
-    第一段大运的干支。
-
-#### 3. 调用示例代码
-
-```ts
-import { Bazi } from 'cantian-bazi';
-
-const bazi = Bazi.fromName('乙巳己丑戊申甲寅')!;
-const result = bazi.getDecadeFortuneStart(1770060660000, 1);
-
-console.log(result);
 ```
 
 ### `bazi.getSixtyCycles()`
@@ -157,67 +205,143 @@ console.log(bazi.getName()); // 乙巳己丑戊申甲寅
 
 ## SixtyCycleTime
 
-### `SixtyCycleTime.fromTime(options)`
+### `SixtyCycleTime.fromDatetime(options)`
 
-按给定时间戳和时间偏移函数构建四柱时间实例。
+按给定时间构建四柱时间实例。
 
 #### 1. 参数说明
 
-- `options.timestamp: number`
-  要计算四柱的绝对时间戳（毫秒）。
-- `options.timeOffsetAt?: (timestamp: number, solarTerm?: SolarTerm) => number`
-  给定时间戳返回对应时间偏移（毫秒）；如果当前计算点是“节”，会同时传入 `solarTerm`；默认东八区固定偏移。
+- `options.datetime: Datetime`
+  要计算四柱的时间；需与 `timeOffsetAt` 使用同一时间体系，例如同为标准时间，或同为真太阳时。
+- `options.timeOffsetAt?: (solarTerm: SolarTerm) => number`
+  用于将节气时间换算到与 `datetime` 相同的时间体系；默认东八区标准时间，不加均时差。
 - `options.dayAtMidnight?: boolean`
-  `false/undefined` 表示 23:00 换日，`true` 表示 00:00 换日。
+  `false/undefined` 表示 23:00 换日；`true` 表示 00:00 换日，且 23:00-23:59 日柱按当天、时柱按次日起。
 
 #### 2. 返回说明
 
 - `SixtyCycleTime`
+  返回对应时间的四柱时间实例。
 
 #### 3. 调用示例代码
 
 ```ts
-import { SixtyCycleTime } from 'cantian-bazi';
+import { createTimeOffsetAt, Datetime, SixtyCycleTime } from 'cantian-bazi';
 
-const t = SixtyCycleTime.fromTime({
-  timestamp: Date.parse('2026-02-03T03:31:00+08:00'),
-  timeOffsetAt: () => 8 * 3600000,
+const t = SixtyCycleTime.fromDatetime({
+  datetime: new Datetime({ year: 2026, month: 2, day: 3, hour: 3, minute: 31 }),
+  timeOffsetAt: createTimeOffsetAt(),
 });
 ```
 
-### `SixtyCycleTime.findFirst(options)`
+### `SixtyCycleTime.fromSolarTerm(options)`
 
-从起点开始查找首个命中指定柱条件的时间实例。
+按给定“节”构建四柱时间实例。
 
 #### 1. 参数说明
 
-- `options.startTimestamp: number`
-  查找起点（毫秒），返回结果满足 `>= startTimestamp`。
-- `options.pillars: readonly SixtyCycle[]`
-  目标柱数组，按年/月/日/时顺序，支持 1~4 柱。
-- `options.timeOffsetAt?: (timestamp: number, solarTerm?: SolarTerm) => number`
-  给定时间戳返回对应时间偏移（毫秒）；如果当前计算点是“节”，会同时传入 `solarTerm`；默认东八区固定偏移。
+- `options.solarTerm: SolarTerm`
+  用于创建实例的“节”对象。
+- `options.timeOffsetAt?: (solarTerm: SolarTerm) => number`
+  用于将节气时间换算到目标时间体系；默认东八区标准时间，不加均时差。
 - `options.dayAtMidnight?: boolean`
-  换日规则：`false/undefined` 为 23:00 换日，`true` 为 00:00 换日。
-- `options.maxYear?: number`
-  查找上限年份（公历年）；超过后停止并返回 `undefined`。
+  `false/undefined` 表示 23:00 换日；`true` 表示 00:00 换日，且 23:00-23:59 日柱按当天、时柱按次日起。
 
 #### 2. 返回说明
 
-- `SixtyCycleTime | undefined`
-  返回 `>= startTimestamp` 的首个命中实例；找不到返回 `undefined`。
+- `SixtyCycleTime`
+  返回节气表中该“节”对应的四柱时间实例。
 
 #### 3. 调用示例代码
 
 ```ts
-import { Bazi, SixtyCycleTime } from 'cantian-bazi';
+import { createTimeOffsetAt, SixtyCycleTime, SolarTerm } from 'cantian-bazi';
+
+const timeOffsetAt = createTimeOffsetAt();
+const yearStart = SixtyCycleTime.fromSolarTerm({
+  solarTerm: new SolarTerm(2026, SolarTerm.INDEX.立春),
+  timeOffsetAt,
+});
+const yearEnd = yearStart.nextStart({ pillarCount: 1 });
+const monthStarts = SixtyCycleTime.split({
+  startDatetime: yearStart.datetime,
+  endDatetime: yearEnd.datetime,
+  pillarCount: 2,
+  timeOffsetAt,
+});
+const months = monthStarts.map((start, index) => ({
+  start,
+  endDatetime: monthStarts[index + 1]?.datetime ?? yearEnd.datetime,
+}));
+```
+
+### `createTimeOffsetAt(options?)`
+
+创建节气时间戳到指定时间体系的偏移量函数。
+
+#### 1. 参数说明
+
+- `options?.utcOffset?: (timestamp: number) => number`
+  根据绝对时间戳返回法定时间相对 UTC 的偏移毫秒数；默认东八区。
+- `options?.longitude?: number`
+  经度，东经为正、西经为负；不传时不做经度修正。
+- `options?.useEot?: boolean`
+  是否加 EOT（均时差）；默认 `false`。传 `true` 时，`datetime` 也应按同一规则校正到真太阳时。
+
+#### 2. 返回说明
+
+- `(solarTerm: SolarTerm) => number`
+  返回 `utcOffset(timestamp) + 经度修正 + 可选均时差`。均时差取自节气表同位置的 `SOLAR_TERM_EOT_MS`。
+
+#### 3. 调用示例代码
+
+```ts
+const timeOffsetAt = createTimeOffsetAt({
+  utcOffset: () => 8 * 3600000,
+  longitude: 116.4,
+  useEot: true,
+});
+```
+
+不知道出生地或只想按北京时间/当地标准时间计算时，不传 `longitude` 和 `useEot` 即可：
+
+```ts
+const timeOffsetAt = createTimeOffsetAt();
+```
+
+### `SixtyCycleTime.find(options)`
+
+按同体系时间范围查找所有命中区间起点。范围不传时，使用节气表支持的完整范围。
+
+#### 1. 参数说明
+
+- `options.startDatetime?: Datetime`
+  查找范围起点（同体系时间，包含）；默认使用节气表支持的最早节气同体系时间。
+- `options.endDatetime?: Datetime`
+  查找范围终点（同体系时间，不包含）；默认使用节气表支持的最晚节气同体系时间。
+- `options.sixtyCycles: readonly SixtyCycle[]`
+  目标六十甲子数组，按年/月/日/时顺序，支持 1~4 个。
+- `options.timeOffsetAt?: (solarTerm: SolarTerm) => number`
+  用于将节气时间换算到目标时间体系；默认东八区标准时间，不加均时差。
+- `options.dayAtMidnight?: boolean`
+  换日规则：`false/undefined` 为 23:00 换日；`true` 为 00:00 换日，且 23:00-23:59 日柱按当天、时柱按次日起。
+
+#### 2. 返回说明
+
+- `SixtyCycleTime[]`
+  找不到返回空数组；返回对象以 `datetime` 表示同体系时间边界。
+
+#### 3. 调用示例代码
+
+```ts
+import { Bazi, createTimeOffsetAt, Datetime, SixtyCycleTime } from 'cantian-bazi';
 
 const bazi = Bazi.fromName('乙巳己丑戊申甲寅')!;
-const first = SixtyCycleTime.findFirst({
-  startTimestamp: Date.parse('2020-01-01T00:00:00+08:00'),
-  pillars: bazi.getSixtyCycles(),
-  timeOffsetAt: () => 8 * 3600000,
-  maxYear: 2100,
+const starts = SixtyCycleTime.find({
+  startDatetime: new Datetime({ year: 2020, month: 1, day: 1 }),
+  endDatetime: new Datetime({ year: 2100, month: 1, day: 1 }),
+  sixtyCycles: bazi.getSixtyCycles(),
+  timeOffsetAt: createTimeOffsetAt(),
 });
 ```
 
@@ -227,16 +351,16 @@ const first = SixtyCycleTime.findFirst({
 
 #### 1. 参数说明
 
-- `options.startTimestamp: number`
-  切割区间起点（毫秒，包含）。
-- `options.endTimestamp: number`
-  切割区间终点（毫秒，不包含）。
+- `options.startDatetime: Datetime`
+  切割区间起点（同体系时间，包含）。
+- `options.endDatetime: Datetime`
+  切割区间终点（同体系时间，不包含）。
 - `options.pillarCount: 1 | 2 | 3 | 4`
   切割粒度：1 年柱，2 月柱，3 日柱，4 时柱。
-- `options.timeOffsetAt?: (timestamp: number, solarTerm?: SolarTerm) => number`
-  给定时间戳返回对应时间偏移（毫秒）；如果当前计算点是“节”，会同时传入 `solarTerm`；默认东八区固定偏移。
+- `options.timeOffsetAt?: (solarTerm: SolarTerm) => number`
+  用于将节气时间换算到目标时间体系；默认东八区标准时间，不加均时差。
 - `options.dayAtMidnight?: boolean`
-  换日规则：`false/undefined` 为 23:00 换日，`true` 为 00:00 换日。
+  换日规则：`false/undefined` 为 23:00 换日；`true` 为 00:00 换日，且 23:00-23:59 日柱按当天、时柱按次日起。
 
 #### 2. 返回说明
 
@@ -246,13 +370,13 @@ const first = SixtyCycleTime.findFirst({
 #### 3. 调用示例代码
 
 ```ts
-import { SixtyCycleTime } from 'cantian-bazi';
+import { createTimeOffsetAt, Datetime, SixtyCycleTime } from 'cantian-bazi';
 
 const points = SixtyCycleTime.split({
-  startTimestamp: Date.parse('2026-02-04T00:00:00+08:00'),
-  endTimestamp: Date.parse('2026-02-05T00:00:00+08:00'),
+  startDatetime: new Datetime({ year: 2026, month: 2, day: 4 }),
+  endDatetime: new Datetime({ year: 2026, month: 2, day: 5 }),
   pillarCount: 3,
-  timeOffsetAt: () => 8 * 3600000,
+  timeOffsetAt: createTimeOffsetAt(),
 });
 ```
 
@@ -271,7 +395,11 @@ const points = SixtyCycleTime.split({
 #### 3. 调用示例代码
 
 ```ts
-const t = SixtyCycleTime.fromTime({ timestamp: Date.now() });
+const timeOffset = 8 * 3600000;
+const t = SixtyCycleTime.fromDatetime({
+  datetime: Datetime.fromTimestamp(Date.now(), timeOffset),
+  timeOffsetAt: () => timeOffset,
+});
 console.log(t.getSixtyCycles().map((x) => x.getName()));
 ```
 
@@ -291,7 +419,11 @@ console.log(t.getSixtyCycles().map((x) => x.getName()));
 #### 3. 调用示例代码
 
 ```ts
-const t = SixtyCycleTime.fromTime({ timestamp: Date.now() });
+const timeOffset = 8 * 3600000;
+const t = SixtyCycleTime.fromDatetime({
+  datetime: Datetime.fromTimestamp(Date.now(), timeOffset),
+  timeOffsetAt: () => timeOffset,
+});
 console.log(t.getName());
 ```
 
@@ -310,193 +442,106 @@ console.log(t.getName());
 #### 3. 调用示例代码
 
 ```ts
-const t = SixtyCycleTime.fromTime({ timestamp: Date.now() });
+const timeOffset = 8 * 3600000;
+const t = SixtyCycleTime.fromDatetime({
+  datetime: Datetime.fromTimestamp(Date.now(), timeOffset),
+  timeOffsetAt: () => timeOffset,
+});
 const bazi = t.getBazi();
 console.log(bazi.getName());
 ```
 
-### `sixtyCycleTime.next(maxYear?)`
+### `sixtyCycleTime.getDecadeFortuneStart(gender)`
 
-返回下一个相邻八字切点（节或时辰切换）。
+计算起运方向、起运换算量、起运时间和首步大运干支。
+
+如果需要展开十步大运，参考上文“常见业务场景 / 展开十步大运”。
 
 #### 1. 参数说明
 
-- `maxYear?: number`
-  允许推进到的最大公历年；超过时返回 `undefined`。
+- `gender: 0 | 1`
+  `0` 女，`1` 男。
 
 #### 2. 返回说明
 
-- `SixtyCycleTime | undefined`
-  超过 `maxYear` 时返回 `undefined`。
+- `{ forward: boolean; yearCount: number; monthCount: number; dayCount: number; hourCount: number; minuteCount: number; refSolarTerm: SolarTerm; startDatetime: Datetime; startSolarTerm: SolarTerm; startSolarTermDatetime: Datetime; startSixtyCycle: SixtyCycle }`
+  - `forward: boolean`
+    是否顺排大运（`true` 顺排，`false` 逆排）。
+  - `yearCount: number`
+    起运增量里的“年”部分（按 `3天=1年` 折算）。
+  - `monthCount: number`
+    起运增量里的“月”部分（按 `6小时=1月` 折算）。
+  - `dayCount: number`
+    起运增量里的“日”部分（按 `12分钟=1日` 折算）。
+  - `hourCount: number`
+    起运增量里的“时”部分（按 `30秒=1时` 折算）。
+  - `minuteCount: number`
+    起运增量里的“分”部分（秒再折算成分钟值）。
+  - `refSolarTerm: SolarTerm`
+    起运换算所参照的“节”对象。
+  - `startDatetime: Datetime`
+    起运时间，由当前时间加上起运换算量得到。
+  - `startSolarTerm: SolarTerm`
+    起运时间所在的“节”对象。
+  - `startSolarTermDatetime: Datetime`
+    `startSolarTerm` 对应的同体系时间。
+  - `startSixtyCycle: SixtyCycle`
+    第一段大运的干支。
 
 #### 3. 调用示例代码
 
 ```ts
-const next = SixtyCycleTime.fromTime({ timestamp: Date.now() }).next(2100);
+const timeOffset = 8 * 3600000;
+const birthTimestamp = Date.parse('2026-02-04T00:00:00+08:00');
+const birth = SixtyCycleTime.fromDatetime({
+  datetime: Datetime.fromTimestamp(birthTimestamp, timeOffset),
+  timeOffsetAt: () => timeOffset,
+});
+const start = birth.getDecadeFortuneStart(1);
+console.log(start.startDatetime);
 ```
 
-### `sixtyCycleTime.nextYear(maxYear?)`
+### `sixtyCycleTime.nextStart(options?)`
 
-返回下一个年柱切换时刻（立春切换）。
-
-#### 1. 参数说明
-
-- `maxYear?: number`
-  允许推进到的最大公历年；超过时返回 `undefined`。
-
-#### 2. 返回说明
-
-- `SixtyCycleTime | undefined`
-
-#### 3. 调用示例代码
-
-```ts
-const next = SixtyCycleTime.fromTime({ timestamp: Date.now() }).nextYear(2100);
-```
-
-### `sixtyCycleTime.nextMonth(maxYear?)`
-
-返回下一个月柱切换时刻（按节切换）。
+返回当前前 N 柱组合的下一个区间起点。
 
 #### 1. 参数说明
 
-- `maxYear?: number`
-  允许推进到的最大公历年；超过时返回 `undefined`。
+- `options?.pillarCount?: 1 | 2 | 3 | 4`
+  指定参与判断的柱数：`1` 为年柱，`2` 为年月柱，`3` 为年月日柱，`4` 为完整四柱；默认 `4`。
 
 #### 2. 返回说明
 
-- `SixtyCycleTime | undefined`
+- `SixtyCycleTime`
+  下一个区间起点；超出节气表支持范围时抛出 `RangeError`。
 
-#### 3. 调用示例代码
+#### 3. 边界说明
 
-```ts
-const next = SixtyCycleTime.fromTime({ timestamp: Date.now() }).nextMonth(2100);
-```
+- `pillarCount: 1`：下一个立春。
+- `pillarCount: 2`：下一个节。
+- `pillarCount: 3`：下一个节或日界，取更早者。
+- `pillarCount: 4`：下一个节或时辰界，取更早者。
 
-### `sixtyCycleTime.nextDay(maxYear?)`
-
-返回下一个日柱切换时刻。
-
-#### 1. 参数说明
-
-- `maxYear?: number`
-  允许推进到的最大公历年；超过时返回 `undefined`。
-
-#### 2. 返回说明
-
-- `SixtyCycleTime | undefined`
-
-#### 3. 调用示例代码
+#### 4. 调用示例代码
 
 ```ts
-const next = SixtyCycleTime.fromTime({ timestamp: Date.now() }).nextDay(2100);
-```
-
-### `sixtyCycleTime.nextHour(maxYear?)`
-
-返回下一个时柱切换时刻。
-
-#### 1. 参数说明
-
-- `maxYear?: number`
-  允许推进到的最大公历年；超过时返回 `undefined`。
-
-#### 2. 返回说明
-
-- `SixtyCycleTime | undefined`
-
-#### 3. 调用示例代码
-
-```ts
-const next = SixtyCycleTime.fromTime({ timestamp: Date.now() }).nextHour(2100);
-```
-
-### `sixtyCycleTime.nextSameYear(maxYear?)`
-
-返回下一个年柱相同的时刻。
-
-#### 1. 参数说明
-
-- `maxYear?: number`
-  允许推进到的最大公历年；超过时返回 `undefined`。
-
-#### 2. 返回说明
-
-- `SixtyCycleTime | undefined`
-
-#### 3. 调用示例代码
-
-```ts
-const next = SixtyCycleTime.fromTime({ timestamp: Date.now() }).nextSameYear(2300);
-```
-
-### `sixtyCycleTime.nextSameMonth(maxYear?)`
-
-返回下一个年柱与月柱都相同的时刻。
-
-#### 1. 参数说明
-
-- `maxYear?: number`
-  允许推进到的最大公历年；超过时返回 `undefined`。
-
-#### 2. 返回说明
-
-- `SixtyCycleTime | undefined`
-
-#### 3. 调用示例代码
-
-```ts
-const next = SixtyCycleTime.fromTime({ timestamp: Date.now() }).nextSameMonth(2300);
-```
-
-### `sixtyCycleTime.nextSameDay(maxYear?)`
-
-返回下一个年/月/日三柱相同的时刻。
-
-#### 1. 参数说明
-
-- `maxYear?: number`
-  允许推进到的最大公历年；超过时返回 `undefined`。
-
-#### 2. 返回说明
-
-- `SixtyCycleTime | undefined`
-
-#### 3. 调用示例代码
-
-```ts
-const next = SixtyCycleTime.fromTime({ timestamp: Date.now() }).nextSameDay(2100);
-```
-
-### `sixtyCycleTime.nextSameHour(maxYear?)`
-
-返回下一个四柱完全相同的时刻。
-
-#### 1. 参数说明
-
-- `maxYear?: number`
-  允许推进到的最大公历年；超过时返回 `undefined`。
-
-#### 2. 返回说明
-
-- `SixtyCycleTime | undefined`
-
-#### 3. 调用示例代码
-
-```ts
-const next = SixtyCycleTime.fromTime({ timestamp: Date.now() }).nextSameHour(2100);
+const timeOffset = 8 * 3600000;
+const next = SixtyCycleTime.fromDatetime({
+  datetime: Datetime.fromTimestamp(Date.now(), timeOffset),
+  timeOffsetAt: () => timeOffset,
+}).nextStart({ pillarCount: 4 });
 ```
 
 ## HeavenStem
 
 ### `HeavenStem.fromIndex(index)`
 
-按索引获取天干实例（循环取模）。
+根据序号获取天干实例。
 
 #### 1. 参数说明
 
 - `index: number`
-  天干索引（会按 10 循环）。
+  天干序号，推荐 `0~9`（`0`、`10` 对应甲，`1` 对应乙，`-1` 对应癸）。
 
 #### 2. 返回说明
 
@@ -656,12 +701,12 @@ console.log(me.getTenGod(target));
 
 ### `EarthBranch.fromIndex(index)`
 
-按索引获取地支实例（循环取模）。
+根据序号获取地支实例。
 
 #### 1. 参数说明
 
 - `index: number`
-  地支索引（会按 12 循环）。
+  地支序号，推荐 `0~11`（`0` 对应子，`1` 对应丑）。
 
 #### 2. 返回说明
 
@@ -835,12 +880,12 @@ console.log(EarthBranch.fromName('寅').getMonthIndex()); // 0
 
 ### `SixtyCycle.fromIndex(index)`
 
-按索引获取六十甲子实例（循环取模）。
+根据序号获取六十甲子实例。
 
 #### 1. 参数说明
 
 - `index: number`
-  六十甲子索引（会按 60 循环）。
+  六十甲子序号，推荐 `0~59`（`0` 对应甲子）。
 
 #### 2. 返回说明
 
@@ -1011,7 +1056,7 @@ console.log(SixtyCycle.fromName('甲子').getSelfSeat());
 
 ### `SolarTerm.getSupportedTimestampRange()`
 
-获取当前节气表支持的时间戳范围。
+返回本库可用的节气时间戳范围。
 
 #### 1. 参数说明
 
@@ -1031,7 +1076,7 @@ console.log(SolarTerm.getSupportedTimestampRange());
 
 ### `SolarTerm.getSupportedYearRange()`
 
-获取当前节气表支持的年份范围。
+返回本库可用的节气年份范围。
 
 #### 1. 参数说明
 
@@ -1047,18 +1092,16 @@ console.log(SolarTerm.getSupportedTimestampRange());
 console.log(SolarTerm.getSupportedYearRange());
 ```
 
-### `new SolarTerm(solarTermYear, solarTermIndex, mode?)`
+### `new SolarTerm(year, index)`
 
-按节气年和节气索引创建节气实例。
+按“年份 + 节序号”创建节气对象。本类只处理十二节，不处理十二气。
 
 #### 1. 参数说明
 
-- `solarTermYear: number`
-  节气年（按节气表索引年）。
-- `solarTermIndex: number`
-  节气索引，范围 `0~23`。
-- `mode?: 1 | 2`
-  `1` 表示按节气步进，`2` 表示按“节”步进。
+- `year: number`
+  节所属年份。
+- `index: number`
+  节序号，范围 `0~11`（可配合 `SolarTerm.NAMES` 或 `SolarTerm.INDEX` 使用）。
 
 #### 2. 返回说明
 
@@ -1068,20 +1111,18 @@ console.log(SolarTerm.getSupportedYearRange());
 #### 3. 调用示例代码
 
 ```ts
-const lichun = new SolarTerm(2026, SolarTerm.NAME_TO_INDEX.立春, SolarTerm.MODE.JIE);
+const lichun = new SolarTerm(2026, SolarTerm.INDEX.立春);
 console.log(lichun.timestamp);
 ```
 
-### `SolarTerm.fromTimestamp(timestamp, mode?)`
+### `SolarTerm.fromTimestamp(timestamp)`
 
-按时间戳定位所在节气实例。
+根据时间戳获取对应的节对象。
 
 #### 1. 参数说明
 
 - `timestamp: number`
-  用于定位的时间戳（毫秒）。
-- `mode?: 1 | 2`
-  `1` 表示按节气定位，`2` 表示按“节”定位。
+  目标时间戳（毫秒）。
 
 #### 2. 返回说明
 
@@ -1091,13 +1132,13 @@ console.log(lichun.timestamp);
 #### 3. 调用示例代码
 
 ```ts
-const solarTerm = SolarTerm.fromTimestamp(Date.now(), SolarTerm.MODE.JIE);
+const solarTerm = SolarTerm.fromTimestamp(Date.now());
 console.log(solarTerm.getName());
 ```
 
 ### `solarTerm.getName()`
 
-返回节气名称。
+返回节名称。
 
 #### 1. 参数说明
 
@@ -1106,7 +1147,7 @@ console.log(solarTerm.getName());
 #### 2. 返回说明
 
 - `string`
-  节气名称。
+  节名称。
 
 #### 3. 调用示例代码
 
@@ -1116,7 +1157,7 @@ console.log(SolarTerm.fromTimestamp(Date.now()).getName());
 
 ### `solarTerm.next(offset?)`
 
-获取偏移后的节气实例（按当前 mode 步进）。
+获取后续的节对象。
 
 #### 1. 参数说明
 
@@ -1131,7 +1172,7 @@ console.log(SolarTerm.fromTimestamp(Date.now()).getName());
 #### 3. 调用示例代码
 
 ```ts
-const current = SolarTerm.fromTimestamp(Date.now(), SolarTerm.MODE.JIE);
+const current = SolarTerm.fromTimestamp(Date.now());
 console.log(current.next(1).getName());
 ```
 
@@ -1139,12 +1180,12 @@ console.log(current.next(1).getName());
 
 ### `Wuxing.fromIndex(index)`
 
-按索引获取五行实例（循环取模）。
+根据序号获取五行实例。
 
 #### 1. 参数说明
 
 - `index: number`
-  五行索引（会按 5 循环）。
+  五行序号，推荐 `0~4`（`0` 木，`1` 火，`2` 土，`3` 金，`4` 水）。
 
 #### 2. 返回说明
 
@@ -1240,6 +1281,68 @@ console.log(Wuxing.fromName('木').getRelation('火')); // 1
 import { Datetime } from 'cantian-bazi';
 
 const dt = Datetime.fromTimestamp(Date.now(), 8 * 3600000);
+```
+
+### `datetime.toUtcTimestamp()`
+
+将 `Datetime` 按 UTC 字段换算成毫秒时间值。
+
+#### 1. 参数说明
+
+无。
+
+#### 2. 返回说明
+
+- `number`
+
+#### 3. 调用示例代码
+
+```ts
+const timestamp = Datetime.fromTimestamp(0).toUtcTimestamp();
+```
+
+### `datetime.diffMs(other)`
+
+返回两个 `Datetime` 的毫秒差，计算方向为当前对象减去 `other`。
+
+#### 1. 参数说明
+
+- `other: Datetime`
+  用于计算差值的另一个 `Datetime` 实例。
+
+#### 2. 返回说明
+
+- `number`
+  小于 0 表示当前对象更早，等于 0 表示相同，大于 0 表示更晚。
+
+#### 3. 调用示例代码
+
+```ts
+const start = Datetime.fromTimestamp(0);
+const end = start.add({ day: 1 });
+console.log(end.diffMs(start)); // 86400000
+```
+
+### `datetime.diffDays(other)`
+
+返回两个 `Datetime` 的日历日期差，计算方向为当前对象日期减去 `other` 日期；时分秒毫秒不参与计算。
+
+#### 1. 参数说明
+
+- `other: Datetime`
+  用于计算差值的另一个 `Datetime` 实例。
+
+#### 2. 返回说明
+
+- `number`
+  小于 0 表示当前对象日期更早，等于 0 表示同一天，大于 0 表示当前对象日期更晚。
+
+#### 3. 调用示例代码
+
+```ts
+const start = new Datetime({ year: 2026, month: 4, day: 4, hour: 23, minute: 59, second: 59 });
+const end = new Datetime({ year: 2026, month: 4, day: 5 });
+console.log(end.diffDays(start)); // 1
 ```
 
 ### `datetime.compare(other)`

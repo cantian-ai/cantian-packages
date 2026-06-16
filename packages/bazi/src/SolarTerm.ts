@@ -4,40 +4,26 @@ const mod = (value: number, divisor: number) => ((value % divisor) + divisor) % 
 
 const MIN_YEAR = 0;
 const MAX_YEAR = SOLAR_TERM_TIMESTAMPS.length - 1;
-const SOLAR_TERM_COUNT = 24;
+const SOLAR_TERM_COUNT = 12;
 const MIN_TIMESTAMP = SOLAR_TERM_TIMESTAMPS[MIN_YEAR][0];
 const MAX_TIMESTAMP = SOLAR_TERM_TIMESTAMPS[MAX_YEAR][SOLAR_TERM_COUNT - 1];
-type SolarTermMode = 1 | 2;
 
 export class SolarTerm {
-  static readonly MODE = { TERM: 1, JIE: 2 } as const;
   static readonly NAMES = [
     '小寒',
-    '大寒',
     '立春',
-    '雨水',
     '惊蛰',
-    '春分',
     '清明',
-    '谷雨',
     '立夏',
-    '小满',
     '芒种',
-    '夏至',
     '小暑',
-    '大暑',
     '立秋',
-    '处暑',
     '白露',
-    '秋分',
     '寒露',
-    '霜降',
     '立冬',
-    '小雪',
     '大雪',
-    '冬至',
   ] as const;
-  static readonly NAME_TO_INDEX = Object.fromEntries(SolarTerm.NAMES.map((term, index) => [term, index])) as Record<
+  static readonly INDEX = Object.fromEntries(SolarTerm.NAMES.map((term, index) => [term, index])) as Record<
     (typeof SolarTerm.NAMES)[number],
     number
   >;
@@ -57,43 +43,40 @@ export class SolarTerm {
   }
 
   readonly timestamp: number;
-  readonly solarTermYear: number;
-  readonly solarTermIndex: number;
-  readonly mode: SolarTermMode;
+  readonly year: number;
+  readonly index: number;
 
-  constructor(solarTermYear: number, solarTermIndex: number, mode: SolarTermMode = SolarTerm.MODE.TERM) {
-    if (solarTermYear < MIN_YEAR || solarTermYear > MAX_YEAR || solarTermIndex < 0 || solarTermIndex >= SOLAR_TERM_COUNT) {
-      throw new Error(`Out of range`);
+  constructor(year: number, index: number) {
+    if (year < MIN_YEAR || year > MAX_YEAR || index < 0 || index >= SOLAR_TERM_COUNT) {
+      throw new RangeError('Solar term is out of supported range');
     }
-    this.solarTermYear = solarTermYear;
-    this.solarTermIndex = solarTermIndex;
-    this.mode = mode;
-    this.timestamp = SOLAR_TERM_TIMESTAMPS[solarTermYear][solarTermIndex];
+    this.year = year;
+    this.index = index;
+    this.timestamp = SOLAR_TERM_TIMESTAMPS[year][index];
   }
 
   getName() {
-    return SolarTerm.NAMES[this.solarTermIndex];
+    return SolarTerm.NAMES[this.index];
   }
 
-  static fromTimestamp(timestamp: number, mode: SolarTermMode = SolarTerm.MODE.TERM) {
+  static fromTimestamp(timestamp: number) {
     if (timestamp < MIN_TIMESTAMP || timestamp > MAX_TIMESTAMP) {
-      return new this(timestamp < MIN_TIMESTAMP ? MIN_YEAR - 1 : MAX_YEAR + 1, 0, mode);
+      throw new RangeError('Solar term is out of supported range');
     }
     const approxYear = new Date(timestamp).getUTCFullYear();
     const currentYearTerms = SOLAR_TERM_TIMESTAMPS[approxYear];
-    const lastIndex = SOLAR_TERM_COUNT - 1 - mod(SOLAR_TERM_COUNT - 1, mode);
-    for (let termIndex = lastIndex; termIndex >= 0; termIndex -= mode) {
-      if (timestamp >= currentYearTerms[termIndex]) {
-        return new this(approxYear, termIndex, mode);
+    for (let index = SOLAR_TERM_COUNT - 1; index >= 0; index -= 1) {
+      if (timestamp >= currentYearTerms[index]) {
+        return new this(approxYear, index);
       }
     }
-    return new this(approxYear - 1, lastIndex, mode);
+    return new this(approxYear - 1, SOLAR_TERM_COUNT - 1);
   }
 
   next(offset = 1) {
-    const absoluteTermIndex = this.solarTermYear * SOLAR_TERM_COUNT + this.solarTermIndex + offset * this.mode;
-    const solarTermYear = Math.floor(absoluteTermIndex / SOLAR_TERM_COUNT);
-    const solarTermIndex = mod(absoluteTermIndex, SOLAR_TERM_COUNT);
-    return new SolarTerm(solarTermYear, solarTermIndex, this.mode);
+    const absoluteTermIndex = this.year * SOLAR_TERM_COUNT + this.index + offset;
+    const year = Math.floor(absoluteTermIndex / SOLAR_TERM_COUNT);
+    const index = mod(absoluteTermIndex, SOLAR_TERM_COUNT);
+    return new SolarTerm(year, index);
   }
 }

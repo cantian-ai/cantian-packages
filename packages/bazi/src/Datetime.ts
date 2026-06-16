@@ -8,6 +8,8 @@ export type DatetimeDelta = Partial<{
   ms: number;
 }>;
 
+const DAY_MS = 86400000;
+
 export class Datetime {
   readonly year: number;
   readonly month: number;
@@ -26,13 +28,32 @@ export class Datetime {
     second?: number;
     ms?: number;
   }) {
+    const hour = options.hour ?? 0;
+    const minute = options.minute ?? 0;
+    const second = options.second ?? 0;
+    const ms = options.ms ?? 0;
+    const date = new Date(0);
+    date.setUTCFullYear(options.year, options.month - 1, options.day);
+    date.setUTCHours(hour, minute, second, ms);
+    if (
+      ![options.year, options.month, options.day, hour, minute, second, ms].every(Number.isInteger) ||
+      date.getUTCFullYear() !== options.year ||
+      date.getUTCMonth() !== options.month - 1 ||
+      date.getUTCDate() !== options.day ||
+      date.getUTCHours() !== hour ||
+      date.getUTCMinutes() !== minute ||
+      date.getUTCSeconds() !== second ||
+      date.getUTCMilliseconds() !== ms
+    ) {
+      throw new RangeError(`Invalid datetime: ${JSON.stringify({ ...options, hour, minute, second, ms })}`);
+    }
     this.year = options.year;
     this.month = options.month;
     this.day = options.day;
-    this.hour = options.hour ?? 0;
-    this.minute = options.minute ?? 0;
-    this.second = options.second ?? 0;
-    this.ms = options.ms ?? 0;
+    this.hour = hour;
+    this.minute = minute;
+    this.second = second;
+    this.ms = ms;
   }
 
   static fromTimestamp(timestamp: number, timeOffset = 0) {
@@ -48,6 +69,22 @@ export class Datetime {
     });
   }
 
+  toUtcTimestamp() {
+    const date = new Date(Date.UTC(2000, this.month - 1, this.day, this.hour, this.minute, this.second, this.ms));
+    date.setUTCFullYear(this.year);
+    return date.getTime();
+  }
+
+  diffMs(other: Datetime) {
+    return this.toUtcTimestamp() - other.toUtcTimestamp();
+  }
+
+  diffDays(other: Datetime) {
+    const startOfDate = new Datetime({ year: this.year, month: this.month, day: this.day });
+    const otherStartOfDate = new Datetime({ year: other.year, month: other.month, day: other.day });
+    return startOfDate.diffMs(otherStartOfDate) / DAY_MS;
+  }
+
   compare(other: Datetime) {
     return (
       this.year - other.year ||
@@ -61,7 +98,7 @@ export class Datetime {
   }
 
   add(delta: DatetimeDelta) {
-    const date = new Date(Date.UTC(this.year, this.month - 1, this.day, this.hour, this.minute, this.second, this.ms));
+    const date = new Date(this.toUtcTimestamp());
     date.setUTCFullYear(date.getUTCFullYear() + (delta.year ?? 0));
     date.setUTCMonth(date.getUTCMonth() + (delta.month ?? 0));
     date.setUTCDate(date.getUTCDate() + (delta.day ?? 0));
