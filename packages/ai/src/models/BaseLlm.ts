@@ -19,6 +19,7 @@ import { executeTool } from '../util.js';
 export type Options = {
   tools?: Record<string, Tool>;
   signal?: AbortSignal;
+  idleTimeoutMs?: number;
   finalRound?: boolean;
   logMeta?: any; // Enable trace if truthy
   extRequestParams?: any;

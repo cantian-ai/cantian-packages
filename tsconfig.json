@@ -42,6 +42,9 @@
     },
     {
       "path": "packages/examples"
+    },
+    {
+      "path": "packages/bazibiz"
     }
   ]
 }

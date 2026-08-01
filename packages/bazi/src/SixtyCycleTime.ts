@@ -16,8 +16,8 @@ const DAY_ANCHOR_UTC = Date.UTC(1984, 0, 31); // 1984-01-31 为甲子日
 const getSolarTermDatetime = (solarTerm: SolarTerm, timeOffsetAt: TimeOffsetAt) =>
   Datetime.fromTimestamp(solarTerm.timestamp, timeOffsetAt(solarTerm));
 
-const getSolarTermAtDatetime = (datetime: Datetime, timeOffsetAt: TimeOffsetAt) => {
-  let solarTerm = SolarTerm.fromTimestamp(datetime.toUtcTimestamp());
+const getSolarTermAtDatetime = (datetime: Datetime, timeOffsetAt: TimeOffsetAt, south?: boolean) => {
+  let solarTerm = SolarTerm.fromTimestamp(datetime.toUtcTimestamp(), { south });
   let solarTermDatetime = getSolarTermDatetime(solarTerm, timeOffsetAt);
 
   while (solarTermDatetime.compare(datetime) > 0) {
@@ -48,6 +48,11 @@ const getMonthCycle = (yearStemIndex: number, monthOffset: number) => {
   const stemIndex = mod((yearStemIndex % 5) * 2 + 2 + monthOffset, 10);
   return SixtyCycle.fromName(`${HeavenStem.NAMES[stemIndex]}${EarthBranch.NAMES[branchIndex]}`)!;
 };
+
+const getYearStartIndex = (south?: boolean) => (south ? SolarTerm.INDEX.立秋 : SolarTerm.INDEX.立春);
+
+const getFortuneDirection = (yearSixtyCycle: SixtyCycle, gender: 0 | 1): 1 | -1 =>
+  yearSixtyCycle.getHeavenStem().getYinyang() === (gender === 1 ? YINYANG.YANG : YINYANG.YIN) ? 1 : -1;
 
 const getNextHourDatetime = (datetime: Datetime, dayAtMidnight?: boolean) => {
   const hourStep = datetime.hour % 2 === 0 ? 1 : 2;
@@ -104,6 +109,7 @@ export class SixtyCycleTime {
   readonly datetime: Datetime; // 与 timeOffsetAt 同一时间体系的时间
   readonly solarTerm: SolarTerm;
   readonly dayAtMidnight?: boolean;
+  readonly south?: boolean;
   readonly sixtyCycles: readonly [SixtyCycle, SixtyCycle, SixtyCycle, SixtyCycle];
   readonly timeOffsetAt: TimeOffsetAt; // 节气时间的时间体系偏移量函数
 
@@ -112,36 +118,46 @@ export class SixtyCycleTime {
     solarTerm: SolarTerm,
     dayAtMidnight: boolean | undefined,
     timeOffsetAt: TimeOffsetAt,
+    south: boolean | undefined,
   ) {
-    const year = solarTerm.index >= SolarTerm.INDEX.立春 ? solarTerm.year : solarTerm.year - 1;
+    const useSouth = south ?? solarTerm.south;
+    const yearStartIndex = getYearStartIndex(useSouth);
+    const year = solarTerm.index >= yearStartIndex ? solarTerm.year : solarTerm.year - 1;
     const yearCycle = SixtyCycle.fromIndex(year - 1984);
     const dayCycle = SixtyCycle.fromIndex(getDayIndex60(datetime, dayAtMidnight));
     this.datetime = datetime;
-    this.solarTerm = solarTerm;
+    this.solarTerm = new SolarTerm(solarTerm.year, solarTerm.index, { south: useSouth });
     this.dayAtMidnight = dayAtMidnight;
+    this.south = useSouth;
     this.timeOffsetAt = timeOffsetAt;
     this.sixtyCycles = [
       yearCycle,
-      getMonthCycle(yearCycle.getHeavenStem().index, mod(solarTerm.index + 11, 12)),
+      getMonthCycle(yearCycle.getHeavenStem().index, mod(solarTerm.index - yearStartIndex, 12)),
       dayCycle,
       getHourCycle(dayCycle, datetime.hour, dayAtMidnight),
     ];
   }
 
   /** 根据“节”创建四柱时间对象。 */
-  static fromSolarTerm(options: { solarTerm: SolarTerm; timeOffsetAt?: TimeOffsetAt; dayAtMidnight?: boolean }) {
-    const { solarTerm, dayAtMidnight } = options;
+  static fromSolarTerm(options: { solarTerm: SolarTerm; timeOffsetAt?: TimeOffsetAt; dayAtMidnight?: boolean; south?: boolean }) {
+    const { solarTerm, dayAtMidnight, south } = options;
+    const useSolarTerm = new SolarTerm(solarTerm.year, solarTerm.index, { south: south ?? solarTerm.south });
     const timeOffsetAt = options.timeOffsetAt ?? EAST8_TIME_OFFSET_AT;
-    const datetime = getSolarTermDatetime(solarTerm, timeOffsetAt);
-    return new SixtyCycleTime(datetime, solarTerm, dayAtMidnight, timeOffsetAt);
+    const datetime = getSolarTermDatetime(useSolarTerm, timeOffsetAt);
+    return new SixtyCycleTime(datetime, useSolarTerm, dayAtMidnight, timeOffsetAt, south);
   }
 
   /** 根据给定时间创建四柱时间对象；datetime 需与 timeOffsetAt 使用同一时间体系。 */
-  static fromDatetime(options: { datetime: Datetime; timeOffsetAt?: TimeOffsetAt; dayAtMidnight?: boolean }) {
-    const { datetime, dayAtMidnight } = options;
+  static fromDatetime(options: {
+    datetime: Datetime;
+    timeOffsetAt?: TimeOffsetAt;
+    dayAtMidnight?: boolean;
+    south?: boolean;
+  }) {
+    const { datetime, dayAtMidnight, south } = options;
     const timeOffsetAt = options.timeOffsetAt ?? EAST8_TIME_OFFSET_AT;
-    const { solarTerm } = getSolarTermAtDatetime(datetime, timeOffsetAt);
-    return new SixtyCycleTime(datetime, solarTerm, dayAtMidnight, timeOffsetAt);
+    const { solarTerm } = getSolarTermAtDatetime(datetime, timeOffsetAt, south);
+    return new SixtyCycleTime(datetime, solarTerm, dayAtMidnight, timeOffsetAt, south);
   }
 
   /** 在区间内查找所有命中起点。 */
@@ -151,12 +167,14 @@ export class SixtyCycleTime {
     timeOffsetAt?: TimeOffsetAt;
     sixtyCycles: readonly SixtyCycle[];
     dayAtMidnight?: boolean;
+    south?: boolean;
   }) {
     const timeOffsetAt = options.timeOffsetAt ?? EAST8_TIME_OFFSET_AT;
-    const { sixtyCycles, dayAtMidnight } = options;
+    const { sixtyCycles, dayAtMidnight, south } = options;
+    const yearStartIndex = getYearStartIndex(south);
     const supportedYearRange = SolarTerm.getSupportedYearRange();
-    const firstSolarTerm = new SolarTerm(supportedYearRange.minYear, 0);
-    const lastSolarTerm = new SolarTerm(supportedYearRange.maxYear, SolarTerm.NAMES.length - 1);
+    const firstSolarTerm = new SolarTerm(supportedYearRange.minYear, 0, { south });
+    const lastSolarTerm = new SolarTerm(supportedYearRange.maxYear, SolarTerm.NAMES.length - 1, { south });
     const startDatetime = options.startDatetime ?? getSolarTermDatetime(firstSolarTerm, timeOffsetAt);
     const endDatetime = options.endDatetime ?? getSolarTermDatetime(lastSolarTerm, timeOffsetAt);
 
@@ -172,7 +190,7 @@ export class SixtyCycleTime {
 
     // 年柱每 60 年重复一次；如果指定了月柱，候选区间从目标月对应的“节”开始。
     const targetYearStart = 1984 + targetYear.index;
-    const termRawIndex = SolarTerm.INDEX.立春 + (targetMonth?.getEarthBranch().getMonthIndex() ?? 0);
+    const termRawIndex = yearStartIndex + (targetMonth?.getEarthBranch().getMonthIndex() ?? 0);
     const firstCandidateYear = targetYearStart + 60 * Math.ceil((startDatetime.year - 1 - targetYearStart) / 60);
     const result: SixtyCycleTime[] = [];
     for (
@@ -183,8 +201,9 @@ export class SixtyCycleTime {
       const intervalSolarTerm = new SolarTerm(
         candidateYear + Math.floor(termRawIndex / SolarTerm.NAMES.length),
         mod(termRawIndex, SolarTerm.NAMES.length),
+        { south },
       );
-      const intervalStart = SixtyCycleTime.fromSolarTerm({ solarTerm: intervalSolarTerm, timeOffsetAt, dayAtMidnight });
+      const intervalStart = SixtyCycleTime.fromSolarTerm({ solarTerm: intervalSolarTerm, timeOffsetAt, dayAtMidnight, south });
       const intervalEndDatetime = getSolarTermDatetime(intervalSolarTerm.next(targetMonth ? 1 : 12), timeOffsetAt);
       let datetime = intervalStart.datetime;
       let matchEndDatetime = intervalEndDatetime;
@@ -222,7 +241,7 @@ export class SixtyCycleTime {
         result.push(intervalStart);
         continue;
       }
-      result.push(new SixtyCycleTime(datetime, intervalSolarTerm, dayAtMidnight, timeOffsetAt));
+      result.push(new SixtyCycleTime(datetime, intervalSolarTerm, dayAtMidnight, timeOffsetAt, south));
     }
     return result;
   }
@@ -233,15 +252,16 @@ export class SixtyCycleTime {
     endDatetime: Datetime;
     timeOffsetAt?: TimeOffsetAt;
     dayAtMidnight?: boolean;
+    south?: boolean;
     pillarCount: 1 | 2 | 3 | 4;
   }) {
-    const { startDatetime, endDatetime, dayAtMidnight, pillarCount } = options;
+    const { startDatetime, endDatetime, dayAtMidnight, south, pillarCount } = options;
     if (startDatetime.compare(endDatetime) >= 0) {
       return [];
     }
     const timeOffsetAt = options.timeOffsetAt ?? EAST8_TIME_OFFSET_AT;
     const result: SixtyCycleTime[] = [];
-    let current = SixtyCycleTime.fromDatetime({ datetime: startDatetime, timeOffsetAt, dayAtMidnight });
+    let current = SixtyCycleTime.fromDatetime({ datetime: startDatetime, timeOffsetAt, dayAtMidnight, south });
     result.push(current);
     while (true) {
       const next = current.nextStart({ pillarCount });
@@ -270,8 +290,8 @@ export class SixtyCycleTime {
 
   getDecadeFortuneStart(gender: 0 | 1) {
     const [yearSixtyCycle, monthSixtyCycle] = this.sixtyCycles;
-    const forward = yearSixtyCycle.getHeavenStem().getYinyang() === (gender === 1 ? YINYANG.YANG : YINYANG.YIN);
-    const refSolarTerm = forward ? this.solarTerm.next(1) : this.solarTerm;
+    const direction = getFortuneDirection(yearSixtyCycle, gender);
+    const refSolarTerm = direction === 1 ? this.solarTerm.next(1) : this.solarTerm;
     const refSolarTermDatetime = getSolarTermDatetime(refSolarTerm, this.timeOffsetAt);
     let seconds = Math.floor(Math.abs(refSolarTermDatetime.diffMs(this.datetime)) / 1000);
     const yearCount = Math.floor(seconds / 259200);
@@ -290,9 +310,13 @@ export class SixtyCycleTime {
       hour: hourCount,
       minute: minuteCount,
     });
-    const { solarTerm: startSolarTerm, datetime: startSolarTermDatetime } = getSolarTermAtDatetime(startDatetime, this.timeOffsetAt);
+    const { solarTerm: startSolarTerm, datetime: startSolarTermDatetime } = getSolarTermAtDatetime(
+      startDatetime,
+      this.timeOffsetAt,
+      this.south,
+    );
     return {
-      forward,
+      direction,
       yearCount,
       monthCount,
       dayCount,
@@ -302,7 +326,16 @@ export class SixtyCycleTime {
       startDatetime, // 与当前实例同一时间体系的起运时间
       startSolarTerm, // 起运时间所在的“节”
       startSolarTermDatetime, // 起运时间所在的“节”对应的同体系时间
-      startSixtyCycle: monthSixtyCycle.next(forward ? 1 : -1),
+      startSixtyCycle: monthSixtyCycle.next(direction),
+    };
+  }
+
+  getMinorFortuneStart(gender: 0 | 1) {
+    const [yearSixtyCycle, , , hourSixtyCycle] = this.sixtyCycles;
+    const direction = getFortuneDirection(yearSixtyCycle, gender);
+    return {
+      direction,
+      startSixtyCycle: hourSixtyCycle.next(direction),
     };
   }
 
@@ -310,12 +343,13 @@ export class SixtyCycleTime {
   nextStart(options?: { pillarCount?: 1 | 2 | 3 | 4 }): SixtyCycleTime {
     const { pillarCount = 4 } = options ?? {};
     if (pillarCount < 3) {
-      const stepsToNext = pillarCount === 1 ? mod(SolarTerm.INDEX.立春 - this.solarTerm.index, 12) || 12 : 1;
+      const stepsToNext = pillarCount === 1 ? mod(getYearStartIndex(this.south) - this.solarTerm.index, 12) || 12 : 1;
       const nextSolarTerm = this.solarTerm.next(stepsToNext);
       return SixtyCycleTime.fromSolarTerm({
         solarTerm: nextSolarTerm,
         timeOffsetAt: this.timeOffsetAt,
         dayAtMidnight: this.dayAtMidnight,
+        south: this.south,
       });
     }
 
@@ -334,7 +368,7 @@ export class SixtyCycleTime {
     if (nextMonth.datetime.compare(nextCycleDatetime) <= 0) {
       return nextMonth;
     }
-    return new SixtyCycleTime(nextCycleDatetime, this.solarTerm, this.dayAtMidnight, this.timeOffsetAt);
+    return new SixtyCycleTime(nextCycleDatetime, this.solarTerm, this.dayAtMidnight, this.timeOffsetAt, this.south);
   }
 }
 

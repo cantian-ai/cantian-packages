@@ -13,6 +13,7 @@ export type ToolCallChunk = {
   name: string;
   arguments: string;
   callId: string;
+  reasoningContent?: string;
 };
 export type ToolCallOutputChunk = {
   type: 'TOOL_CALL_OUTPUT';
@@ -74,6 +75,7 @@ export type UsageChunk = {
   estimatedCost: number;
   input: any;
   output: any;
+  reasoning?: string;
 };
 
 // chunk类型：Agent的usage

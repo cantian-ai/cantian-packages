@@ -20,6 +20,7 @@ type CompletionModelOptions = {
   };
   temperature?: number;
   textSchema?: JSONSchema;
+  textSchemaType?: 'BAIDU' | 'GPT';
 } & Options;
 
 const COST_DOLLAR_PER_M = 0.6;
@@ -38,7 +39,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
 
     try {
       const [url, init] = this.buildCompletionRequestParams(messages, options);
-      const response = sse(url, init, { idleTimeoutMs: 45000 });
+      const response = sse(url, init, { idleTimeoutMs: options?.idleTimeoutMs ?? 45000 });
 
       const usageContent: Partial<UsageChunk> = {
         type: 'USAGE',
@@ -181,6 +182,10 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
         }
       }
 
+      if (assistantReasoning.length) {
+        usageContent.reasoning = assistantReasoning;
+      }
+
       usageContent.totalCostMs = Date.now() - startedAt;
       usageContent.estimatedCost = (COST_DOLLAR_PER_M * (usageContent.totalTokens || 0)) / 1_000_000;
 
@@ -195,13 +200,24 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
   }
 
   protected buildCompletionRequestParams(messages: InputItem[], options?: CompletionModelOptions): [string, RequestInit] {
-    let tools = options?.tools;
-    if (!tools || !Object.keys(tools).length || options?.finalRound) {
+    const fullOptions = this.withDefaultModelOptions(options);
+    let tools = fullOptions?.tools;
+    if (!tools || !Object.keys(tools).length || fullOptions?.finalRound) {
       tools = undefined;
     }
 
     messages = messages.filter(filterMessage);
 
+    const responseFormat = fullOptions?.textSchema && {
+      type: 'json_schema',
+      json_schema:
+        fullOptions.textSchemaType === 'BAIDU'
+          ? fullOptions.textSchema
+          : {
+              name: 'result',
+              schema: fullOptions.textSchema,
+            },
+    };
     return [
       this.url,
       {
@@ -210,13 +226,13 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
-        signal: options?.signal,
+        signal: fullOptions?.signal,
         body: JSON.stringify({
           model: this.model,
           stream: true,
-          reasoning: options?.reasoning,
-          temperature: options?.temperature,
-          messages: messages.map(this.parseInputMessage),
+          reasoning: fullOptions?.reasoning,
+          temperature: fullOptions?.temperature,
+          messages: this.parseInputMessages(messages),
           tools: tools
             ? Object.values(tools).map((tool) => ({
                 type: 'function',
@@ -227,17 +243,49 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
                 },
               }))
             : undefined,
-          response_format: options?.textSchema && {
-            type: 'json_schema',
-            json_schema: {
-              name: 'result',
-              schema: options.textSchema,
-            },
-          },
-          ...options?.extRequestParams,
+          response_format: responseFormat,
+          ...fullOptions?.extRequestParams,
         }),
       },
     ];
+  }
+
+  private parseInputMessages(messages: InputItem[]) {
+    const parsedMessages: any[] = [];
+
+    for (let index = 0; index < messages.length; index++) {
+      const message = messages[index];
+
+      if ('type' in message && message.type === 'TOOL_CALL') {
+        const toolCalls = [message];
+        while (index + 1 < messages.length) {
+          const nextMessage = messages[index + 1];
+          if (!('type' in nextMessage) || nextMessage.type !== 'TOOL_CALL') {
+            break;
+          }
+          toolCalls.push(nextMessage);
+          index++;
+        }
+
+        parsedMessages.push({
+          role: 'assistant',
+          reasoning_content: toolCalls[0].reasoningContent,
+          tool_calls: toolCalls.map((toolCall) => ({
+            id: toolCall.callId,
+            type: 'function',
+            function: {
+              name: toolCall.name,
+              arguments: toolCall.arguments,
+            },
+          })),
+        });
+        continue;
+      }
+
+      parsedMessages.push(this.parseInputMessage(message));
+    }
+
+    return parsedMessages;
   }
 
   parseInputMessage = (message: InputItem) => {

@@ -1,49 +1,75 @@
-import { ResponseLlm, Tool } from 'cantian-ai';
-import { JSONSchema } from 'json-schema-to-ts';
+import { CompletionLlm, Tool } from 'cantian-ai';
+import util from 'node:util';
 
-const schema = {
-  type: 'object',
-  properties: {
-    format: { type: 'string' },
-  },
-  additionalProperties: false,
-} satisfies JSONSchema;
+util.inspect.defaultOptions.depth = 12;
 
 (async () => {
-  const tools: Tool<typeof schema>[] = [
-    {
-      name: 'getDate',
-      description: '获取日期',
-      parameters: schema,
-      handler(args, context) {
-        const { format } = args;
-        console.log('CONTEXT', context);
-        if (format === 'ISO') {
-          return new Date().toISOString();
-        }
-        throw new Error('Only support ISO format');
+  // const url = 'https://openapi-dev.cantian.ai/mcp?tools=Get_bazi_from_solar,Get_bazi_from_lunar';
+  // const authorization = process.env.API_KEY_INTERNAL!;
+  // const tools = await listAgentTools({ url, authorization });
+  const tools = {
+    getTime: {
+      name: 'getTime',
+      description: 'Get date',
+      parameters: { type: 'object' },
+      async *handler(args, context) {
+        await new Promise((r) => setTimeout(r, 1000));
+        yield { process: 'first' };
+        await new Promise((r) => setTimeout(r, 1000));
+        yield { process: 'second' };
+        await new Promise((r) => setTimeout(r, 1000));
+        yield { date: new Date().toISOString() };
+      },
+      toAiText(result) {
+        return `今天${result[result.length - 1].date}`;
       },
     },
-  ];
-  const deepseek = new ResponseLlm(
-    'https://ark.cn-beijing.volces.com/api/v3/responses',
-    process.env.DEEPSEEK_API_KEY!,
-    'deepseek-v3-1-250821',
-  );
+    getDress: {
+      name: 'getDress',
+      description: '获取今日适合的衣着颜色',
+      handler(args, context) {
+        return '红色';
+      },
+      parameters: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', description: 'YYYY-MM-DD' },
+        },
+        required: ['date'],
+        additionalProperties: false,
+      },
+    },
+  } satisfies Record<string, Tool>;
 
-  // try {
-  //   for await (const chunk of deepseek.stream([{ role: 'user', content: '你好，今天日期？' }], {})) {
-  //     console.log(chunk);
-  //   }
-  // } catch (error) {
-  //   console.error(error);
-  // }
-  const result = await deepseek.invoke(
-    [
-      { role: 'assistant', content: '' },
-      { role: 'user', content: '你好' },
-    ],
-    { logMeta: { traceId: 'gaga1' } },
+  const completion = new CompletionLlm(
+    'https://api.deepseek.com/chat/completions',
+    process.env.ORIGIN_DEEPSEEK_API_KEY!,
+    'deepseek-v4-pro',
+    {
+      temperature: 0.8,
+      extRequestParams: {
+        // thinking: { type: 'disabled' },
+        stream_options: {
+          include_usage: true,
+        },
+      },
+    },
   );
-  console.log(result);
+  try {
+    for await (const chunk of completion.agenticStream(
+      [{ role: 'user', content: '今天穿什么颜色好' }],
+      {
+        tools,
+      },
+      {
+        context: { userId: 'abcd' },
+        logMeta: { traceId: 'abcdefg' },
+      },
+    )) {
+      console.log(chunk);
+    }
+  } catch (error) {
+    console.error(error);
+  }
+  console.log('DONE');
 })();

@@ -23,12 +23,11 @@ const birth = SixtyCycleTime.fromDatetime({
 
 const gender: 0 | 1 = 1;
 const start = birth.getDecadeFortuneStart(gender);
-const step = start.forward ? 1 : -1;
 
 const decades = Array.from({ length: 10 }, (_, index) => {
   const startDatetime = start.startDatetime.add({ year: index * 10 });
   const endDatetime = start.startDatetime.add({ year: (index + 1) * 10 });
-  const sixtyCycle = start.startSixtyCycle.next(step * index);
+  const sixtyCycle = start.startSixtyCycle.next(start.direction * index);
 
   return {
     index,
@@ -36,6 +35,22 @@ const decades = Array.from({ length: 10 }, (_, index) => {
     sixtyCycle,
     startDatetime,
     endDatetime,
+  };
+});
+```
+
+### 展开小运
+
+`getMinorFortuneStart()` 返回起始小运干支和推进方向。`startSixtyCycle` 表示出生后第一个小运，后续小运可以在调用侧继续展开。
+
+```ts
+const minorStart = birth.getMinorFortuneStart(gender);
+
+const minorFortunes = Array.from({ length: 10 }, (_, index) => {
+  const sixtyCycle = minorStart.startSixtyCycle.next(minorStart.direction * index);
+  return {
+    name: sixtyCycle.getName(),
+    sixtyCycle,
   };
 });
 ```
@@ -69,7 +84,7 @@ const liuShi = splitRange(liuRi[0]!.start.datetime, liuRi[0]!.endDatetime, 4);
 
 ### 按完整干支年展示流年
 
-如果产品只按起止年份展示大运，例如“2026 年起运”，但流年、流月仍要按完整干支年展开，可以直接从该年的立春创建年度起点。下面示例复用上文的 `birth`：
+如果产品只按起止年份展示大运，例如“2026 年起运”，但流年、流月仍要按完整干支年展开，可以直接从该年的年柱起点创建年度起点：北半球从立春起，南半球反季排盘从立秋起。下面示例复用上文的 `birth`：
 
 ```ts
 import { SolarTerm } from 'cantian-bazi';
@@ -86,6 +101,26 @@ const months = SixtyCycleTime.split({
   endDatetime: yearEnd.datetime,
   pillarCount: 2,
   timeOffsetAt,
+});
+```
+
+南半球反季排盘时，年度起点改用立秋，并保持后续切分同样传入 `south: true`：
+
+```ts
+const south = true;
+const southYearStart = SixtyCycleTime.fromSolarTerm({
+  solarTerm: new SolarTerm(2026, SolarTerm.INDEX.立秋),
+  timeOffsetAt,
+  south,
+});
+const southYearEnd = southYearStart.nextStart({ pillarCount: 1 });
+
+const southMonths = SixtyCycleTime.split({
+  startDatetime: southYearStart.datetime,
+  endDatetime: southYearEnd.datetime,
+  pillarCount: 2,
+  timeOffsetAt,
+  south,
 });
 ```
 
@@ -217,6 +252,8 @@ console.log(bazi.getName()); // 乙巳己丑戊申甲寅
   用于将节气时间换算到与 `datetime` 相同的时间体系；默认东八区标准时间，不加均时差。
 - `options.dayAtMidnight?: boolean`
   `false/undefined` 表示 23:00 换日；`true` 表示 00:00 换日，且 23:00-23:59 日柱按当天、时柱按次日起。
+- `options.south?: boolean`
+  是否按南半球反季排盘；默认 `false`。传 `true` 时，立秋起寅月，年柱也从立秋切换。
 
 #### 2. 返回说明
 
@@ -234,6 +271,18 @@ const t = SixtyCycleTime.fromDatetime({
 });
 ```
 
+南半球反季排盘：
+
+```ts
+const south = SixtyCycleTime.fromDatetime({
+  datetime: new Datetime({ year: 2026, month: 8, day: 8, hour: 12 }),
+  timeOffsetAt: createTimeOffsetAt(),
+  south: true,
+});
+console.log(south.solarTerm.getName()); // 立春
+console.log(south.solarTerm.index); // SolarTerm.INDEX.立秋
+```
+
 ### `SixtyCycleTime.fromSolarTerm(options)`
 
 按给定“节”构建四柱时间实例。
@@ -246,6 +295,8 @@ const t = SixtyCycleTime.fromDatetime({
   用于将节气时间换算到目标时间体系；默认东八区标准时间，不加均时差。
 - `options.dayAtMidnight?: boolean`
   `false/undefined` 表示 23:00 换日；`true` 表示 00:00 换日，且 23:00-23:59 日柱按当天、时柱按次日起。
+- `options.south?: boolean`
+  是否按南半球反季排盘；默认 `false`。传 `true` 时，立秋起寅月，年柱也从立秋切换。
 
 #### 2. 返回说明
 
@@ -325,6 +376,8 @@ const timeOffsetAt = createTimeOffsetAt();
   用于将节气时间换算到目标时间体系；默认东八区标准时间，不加均时差。
 - `options.dayAtMidnight?: boolean`
   换日规则：`false/undefined` 为 23:00 换日；`true` 为 00:00 换日，且 23:00-23:59 日柱按当天、时柱按次日起。
+- `options.south?: boolean`
+  是否按南半球反季排盘；默认 `false`。传 `true` 时，立秋起寅月，年柱也从立秋切换。
 
 #### 2. 返回说明
 
@@ -361,6 +414,8 @@ const starts = SixtyCycleTime.find({
   用于将节气时间换算到目标时间体系；默认东八区标准时间，不加均时差。
 - `options.dayAtMidnight?: boolean`
   换日规则：`false/undefined` 为 23:00 换日；`true` 为 00:00 换日，且 23:00-23:59 日柱按当天、时柱按次日起。
+- `options.south?: boolean`
+  是否按南半球反季排盘；默认 `false`。传 `true` 时，立秋起寅月，年柱也从立秋切换。
 
 #### 2. 返回说明
 
@@ -464,9 +519,9 @@ console.log(bazi.getName());
 
 #### 2. 返回说明
 
-- `{ forward: boolean; yearCount: number; monthCount: number; dayCount: number; hourCount: number; minuteCount: number; refSolarTerm: SolarTerm; startDatetime: Datetime; startSolarTerm: SolarTerm; startSolarTermDatetime: Datetime; startSixtyCycle: SixtyCycle }`
-  - `forward: boolean`
-    是否顺排大运（`true` 顺排，`false` 逆排）。
+- `{ direction: 1 | -1; yearCount: number; monthCount: number; dayCount: number; hourCount: number; minuteCount: number; refSolarTerm: SolarTerm; startDatetime: Datetime; startSolarTerm: SolarTerm; startSolarTermDatetime: Datetime; startSixtyCycle: SixtyCycle }`
+  - `direction: 1 | -1`
+    大运推进方向，`1` 顺排，`-1` 逆排。
   - `yearCount: number`
     起运增量里的“年”部分（按 `3天=1年` 折算）。
   - `monthCount: number`
@@ -501,6 +556,30 @@ const start = birth.getDecadeFortuneStart(1);
 console.log(start.startDatetime);
 ```
 
+### `sixtyCycleTime.getMinorFortuneStart(gender)`
+
+返回小运推进方向和出生后第一个小运干支。
+
+#### 1. 参数说明
+
+- `gender: 0 | 1`
+  `0` 女，`1` 男。
+
+#### 2. 返回说明
+
+- `{ direction: 1 | -1; startSixtyCycle: SixtyCycle }`
+  - `direction: 1 | -1`
+    小运推进方向，`1` 顺排，`-1` 逆排。
+  - `startSixtyCycle: SixtyCycle`
+    出生后第一个小运干支。
+
+#### 3. 调用示例代码
+
+```ts
+const start = birth.getMinorFortuneStart(1);
+console.log(start.startSixtyCycle.getName());
+```
+
 ### `sixtyCycleTime.nextStart(options?)`
 
 返回当前前 N 柱组合的下一个区间起点。
@@ -517,7 +596,7 @@ console.log(start.startDatetime);
 
 #### 3. 边界说明
 
-- `pillarCount: 1`：下一个立春。
+- `pillarCount: 1`：下一个年柱起点；北半球为立春，南半球反季排盘为立秋。
 - `pillarCount: 2`：下一个节。
 - `pillarCount: 3`：下一个节或日界，取更早者。
 - `pillarCount: 4`：下一个节或时辰界，取更早者。
@@ -1092,7 +1171,7 @@ console.log(SolarTerm.getSupportedTimestampRange());
 console.log(SolarTerm.getSupportedYearRange());
 ```
 
-### `new SolarTerm(year, index)`
+### `new SolarTerm(year, index, options?)`
 
 按“年份 + 节序号”创建节气对象。本类只处理十二节，不处理十二气。
 
@@ -1102,6 +1181,9 @@ console.log(SolarTerm.getSupportedYearRange());
   节所属年份。
 - `index: number`
   节序号，范围 `0~11`（可配合 `SolarTerm.NAMES` 或 `SolarTerm.INDEX` 使用）。
+- `options?.south?: boolean`
+  是否按南半球反季展示名称；默认 `false`。传 `true` 时，立秋显示为立春。
+  该选项只影响 `getName()` 的展示名称，`year`、`index` 和 `timestamp` 仍保留真实天文节气。
 
 #### 2. 返回说明
 
@@ -1113,9 +1195,13 @@ console.log(SolarTerm.getSupportedYearRange());
 ```ts
 const lichun = new SolarTerm(2026, SolarTerm.INDEX.立春);
 console.log(lichun.timestamp);
+
+const southLichun = new SolarTerm(2026, SolarTerm.INDEX.立秋, { south: true });
+console.log(southLichun.getName()); // 立春
+console.log(southLichun.index === SolarTerm.INDEX.立秋); // true
 ```
 
-### `SolarTerm.fromTimestamp(timestamp)`
+### `SolarTerm.fromTimestamp(timestamp, options?)`
 
 根据时间戳获取对应的节对象。
 
@@ -1123,6 +1209,8 @@ console.log(lichun.timestamp);
 
 - `timestamp: number`
   目标时间戳（毫秒）。
+- `options?.south?: boolean`
+  是否按南半球反季展示名称；默认 `false`。
 
 #### 2. 返回说明
 
@@ -1138,7 +1226,7 @@ console.log(solarTerm.getName());
 
 ### `solarTerm.getName()`
 
-返回节名称。
+返回节名称。通过 `options.south` 创建的南半球节对象，会返回反季后的展示名称；节对象的 `index` 仍对应真实天文节气。
 
 #### 1. 参数说明
 
@@ -1153,6 +1241,7 @@ console.log(solarTerm.getName());
 
 ```ts
 console.log(SolarTerm.fromTimestamp(Date.now()).getName());
+console.log(new SolarTerm(2026, SolarTerm.INDEX.立秋, { south: true }).getName()); // 立春
 ```
 
 ### `solarTerm.next(offset?)`

@@ -23,7 +23,7 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
     try {
       const [url, init] = this.buildResponseRequestParams(messages, options);
       const startedAt = Date.now();
-      const response = sse(url, init, { idleTimeoutMs: 45000 });
+      const response = sse(url, init, { idleTimeoutMs: options?.idleTimeoutMs ?? 45000 });
       let usageContent: Partial<UsageChunk> = {
         type: 'USAGE',
         model: this.model,

@@ -1,6 +1,6 @@
 {
-  "name": "cantian-bazi",
-  "version": "0.0.14",
+  "name": "cantian-bazibiz",
+  "version": "0.0.1",
   "type": "module",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -14,5 +14,8 @@
   ],
   "scripts": {
     "prepublishOnly": "rm -rf dist && tsc"
+  },
+  "dependencies": {
+    "cantian-bazi": "*"
   }
 }

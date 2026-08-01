@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "cantian-ai": "*",
+    "cantian-bazi": "*",
     "cantian-liuyao": "*",
     "cantian-request": "*",
     "cantian-tymext": "*",
