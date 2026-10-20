@@ -1,6 +1,6 @@
 import { getTraceId } from 'cantian-als';
 import { limitFunction } from 'p-limit';
-import { createThrowHttpErrorFetch, createWithTimeoutFetch } from './basic.js';
+import { createRetryFetch, createThrowHttpErrorFetch, createWithTimeoutFetch } from './basic.js';
 
 export type ApiOptions = {
   basepath?: string;
@@ -14,7 +14,7 @@ export type ApiOptions = {
   time?: string;
 };
 
-const basicFetch = createThrowHttpErrorFetch(createWithTimeoutFetch(10000, fetch));
+const basicFetch = createThrowHttpErrorFetch(createRetryFetch(createWithTimeoutFetch(10000, fetch)));
 
 export const buildFetchParams = (options: ApiOptions): [string, RequestInit] => {
   const { basepath = process.env.API_BASEPATH, path, key = process.env.API_KEY_INTERNAL, data, method } = options;

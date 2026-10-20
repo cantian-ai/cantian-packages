@@ -69,7 +69,7 @@ export function filterMessage(message: InputItem) {
   return true;
 }
 
-export function toolOutputToAiText(output: any) {
+export function toolOutputToAiText(output: any): string {
   if (typeof output?.aiText === 'string') {
     return output.aiText;
   }
@@ -80,5 +80,5 @@ export function toolOutputToAiText(output: any) {
       output = JSON.stringify(output);
     }
   }
-  return output;
+  return output ?? '';
 }

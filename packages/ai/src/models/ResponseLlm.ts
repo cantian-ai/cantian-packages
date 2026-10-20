@@ -151,7 +151,7 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
           return {
             type: 'function_call_output',
             call_id: message.callId,
-            output: toolOutputToAiText(message.error || message.aiText || message.result),
+            output: toolOutputToAiText(message.error ?? message.aiText ?? message.result),
           };
         default:
           throw new Error(`Unexpected message type: ${message.type}`);

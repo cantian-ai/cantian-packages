@@ -1,6 +1,6 @@
 {
   "name": "cantian-liuyao",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "type": "module",
   "exports": {
     ".": "./dist/index.js"
@@ -12,6 +12,6 @@
     "prepublishOnly": "rm -rf dist && tsc"
   },
   "dependencies": {
-    "tyme4ts": "^1.4.4"
+    "cantian-bazi": "*"
   }
 }

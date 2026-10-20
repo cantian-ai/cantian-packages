@@ -1,4 +1,4 @@
-import { EarthBranch, SolarTime } from 'tyme4ts';
+import { Datetime, EarthBranch, SixtyCycleTime } from 'cantian-bazi';
 import { HEXAGRAM, HexagramItem, TRIGRAM, TrigramItem, YINYANG_NAME } from './data.js';
 import { getWuxingRelation } from './util.js';
 
@@ -31,8 +31,8 @@ export const buildLiuyao = (numbers: number[], time: Time) => {
       changedKey += originYinyang;
     }
   }
-  const solarTime = SolarTime.fromYmdHms(time.year, time.month, time.day, time.hour, 0, 0);
-  const dayStem = solarTime.getSixtyCycleHour().getDay().getHeavenStem().toString();
+  const sixtyCycles = SixtyCycleTime.fromDatetime({ datetime: new Datetime(time) }).getSixtyCycles();
+  const dayStem = sixtyCycles[2].getHeavenStem().getName();
   const origin = HEXAGRAM[originKey];
   const changed = movingIndexes.length ? HEXAGRAM[changedKey] : undefined;
   return {
@@ -43,7 +43,7 @@ export const buildLiuyao = (numbers: number[], time: Time) => {
           lower: TRIGRAM[changedKey.slice(0, 3)],
           upper: TRIGRAM[changedKey.slice(3)],
           relation: changed.ganzhi.map((ganzhi) => {
-            const wuxing = EarthBranch.fromName(ganzhi[1]).getElement().getName();
+            const wuxing = EarthBranch.fromName(ganzhi[1]).getWuxing().getName();
             const relation = getWuxingRelation(origin.wuxing, wuxing);
             return relation!;
           }),
@@ -52,7 +52,7 @@ export const buildLiuyao = (numbers: number[], time: Time) => {
     movingIndexes: movingIndexes.length ? movingIndexes : undefined,
     gods: buildGods(dayStem),
     time,
-    timeGanzhi: solarTime.getSixtyCycleHour().getEightChar().toString(),
+    timeGanzhi: sixtyCycles.map((sixtyCycle) => sixtyCycle.getName()).join(' '),
   };
 };
 export type Liuyao = ReturnType<typeof buildLiuyao>;

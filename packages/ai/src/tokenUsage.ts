@@ -51,7 +51,7 @@ export const tokenUsageModelSchema = {
 
 export type TokenUsage = FromSchema<typeof tokenUsageModelSchema>;
 
-const db = mongoClient.db('agent-service');
+const db = mongoClient.db(process.env.TOKEN_USAGE_DB || 'agent-service');
 export const tokenUsageCollection = db.collection<TokenUsage>('tokenUsages');
 
 export const saveModelUsage = async (usageChunk: UsageChunk, meta: any, url: string) => {

@@ -314,7 +314,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
           return {
             role: 'tool',
             tool_call_id: message.callId,
-            content: toolOutputToAiText(message.error || message.aiText || message.result),
+            content: toolOutputToAiText(message.error ?? message.aiText ?? message.result),
           };
 
         default:

@@ -35,10 +35,10 @@
       "path": "packages/ai"
     },
     {
-      "path": "packages/liuyao"
+      "path": "packages/bazi"
     },
     {
-      "path": "packages/bazi"
+      "path": "packages/liuyao"
     },
     {
       "path": "packages/examples"
