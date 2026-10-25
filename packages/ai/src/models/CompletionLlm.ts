@@ -1,4 +1,7 @@
+import { extractProviderError } from 'cantian-request/provider-error';
 import { sse } from 'cantian-request';
+import type { RequestFailure, RequestObserver } from 'cantian-request';
+import type { ModelCallObservation, ModelFailureEvent } from '../monitor/types.js';
 import { JSONSchema } from 'json-schema-to-ts';
 import { saveModelUsage } from '../tokenUsage.js';
 import {
@@ -36,15 +39,57 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
     options = this.withDefaultModelOptions(options);
     const [, release] = await this.semaphore.acquire();
     const startedAt = Date.now();
+    let observation: ModelCallObservation | undefined;
+    let observationEnded = false;
+    let transportFailure: RequestFailure | undefined;
+    const observe = (action: (call: ModelCallObservation) => void) => {
+      if (!observation) return;
+      try { Promise.resolve(action(observation)).catch(() => {}); } catch {}
+    };
+    const endObservation = (action: (call: ModelCallObservation) => void) => {
+      if (observationEnded) return;
+      observationEnded = true;
+      observe(action);
+    };
 
     try {
       const [url, init] = this.buildCompletionRequestParams(messages, options);
-      const response = sse(url, init, { idleTimeoutMs: options?.idleTimeoutMs ?? 45000 });
-
+      // This parse was already needed for USAGE. Reuse it for final model metadata.
+      const requestBody = JSON.parse(init.body as string);
+      if (options?.monitor) {
+        try {
+          observation = options.monitor.startCall({
+            endpoint: url,
+            model: typeof requestBody.model === 'string' ? requestBody.model : 'unknown',
+            method: (init.method ?? 'GET').toUpperCase() as ModelFailureEvent['method'],
+            context: { scenario: options.monitorContext?.scenario ?? 'unknown', traceId: options.monitorContext?.traceId },
+            timeoutMs: options.idleTimeoutMs ?? 45000,
+            observationLayer: 'sdk',
+          });
+        } catch {} // A broken observer must not prevent the original request.
+      }
+      const observer: RequestObserver | undefined = observation ? (event) => {
+        if (event.type === 'response') {
+          observe((call) => call.response({ httpStatus: event.status, providerRequestId: event.requestId }));
+        } else if (event.type === 'content') {
+          observe((call) => call.content());
+        } else if (event.type === 'error') {
+          transportFailure = event;
+          if (event.category === 'cancelled') endObservation((call) => call.cancel());
+          else {
+            const category = event.category;
+            endObservation((call) => call.fail({ code: event.code }, {
+              category, phase: event.phase, httpStatus: event.status, providerRequestId: event.requestId,
+              providerCode: event.providerCode, providerMessage: event.providerMessage,
+            }));
+          }
+        }
+      } : undefined;
+      const response = sse(url, init, { idleTimeoutMs: options?.idleTimeoutMs ?? 45000, observer });
       const usageContent: Partial<UsageChunk> = {
         type: 'USAGE',
         model: this.model,
-        input: JSON.parse(init.body as string),
+        input: requestBody,
       };
 
       const toolCallMap = new Map<number, ToolCallAcc>();
@@ -53,14 +98,29 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
       let assistantReasoning = '';
       let assistantRole: 'assistant' = 'assistant';
       let messageEmitted = false;
+      let sawTermination = false;
 
       yield { type: 'MODEL_CALLING', url, init } satisfies ModelCallingChunk;
 
       for await (const chunk of response) {
         if (!chunk) continue;
-        if (chunk.data === '[DONE]') break;
-
-        const data = JSON.parse(chunk.data);
+        if (chunk.data === '[DONE]') {
+          sawTermination = true;
+          break;
+        }
+        let data: any;
+        try { data = JSON.parse(chunk.data); }
+        catch (error) {
+          endObservation((call) => call.fail(error, { category: 'protocol', phase: 'parse' }));
+          throw error;
+        }
+        if (chunk.event === 'error' || !data || typeof data !== 'object' || Array.isArray(data) || data.error) {
+          // Record protocol failures without changing previously ignored events into throws.
+          const requestId = data?.request_id ?? data?.error?.request_id;
+          if (typeof requestId === 'string') observe((call) => call.response({ providerRequestId: requestId }));
+          endObservation((call) => call.fail(undefined, { category: 'protocol', phase: 'parse',
+            ...(typeof chunk.data === 'string' && Buffer.byteLength(chunk.data) <= 8192 ? extractProviderError(data) : {}) }));
+        }
 
         /** ---------- usage ---------- */
         if (data.usage) {
@@ -77,6 +137,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
 
         const choice = data.choices?.[0];
         if (!choice) continue;
+        if (typeof choice.finish_reason === 'string' && choice.finish_reason.length) sawTermination = true;
 
         const delta = choice.delta ?? {};
 
@@ -182,6 +243,12 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
         }
       }
 
+      // Chat Completions terminates with [DONE] or a finish_reason, not necessarily both.
+      // Missing usage is normal. Consumer return/break skips this block and is cancelled below.
+      if (options?.signal?.aborted) endObservation((call) => call.cancel());
+      else if (!sawTermination) endObservation((call) => call.fail(undefined, { category: 'protocol', phase: 'read' }));
+      else endObservation((call) => call.succeed());
+
       if (assistantReasoning.length) {
         usageContent.reasoning = assistantReasoning;
       }
@@ -194,7 +261,12 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
       }
 
       yield usageContent as UsageChunk;
+    } catch (error) {
+      if (options?.signal?.aborted && !transportFailure) endObservation((call) => call.cancel());
+      else endObservation((call) => call.fail(error, { category: 'client', phase: 'parse' }));
+      throw error;
     } finally {
+      endObservation((call) => call.cancel());
       release();
     }
   }

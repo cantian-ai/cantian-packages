@@ -32,6 +32,8 @@ export class BaseController {
   static isPublic?: boolean;
   static scope?: string;
   static skipRateLimit?: boolean;
+  /** Omit body and x-* headers from the initial request log; defaults to legacy logging. */
+  static skipRequestLogging?: boolean;
   static corsOptions?: CorsOptions = {};
 
   static method: string;
@@ -82,13 +84,14 @@ export class BaseController {
 
   async execute() {
     const startedAt = Date.now();
+    const constructor = this.constructor;
     console.log({
       message: 'Received a request.',
-      endpoint: `${this.req.method} ${this.req.path}`,
-      data: this.data,
-      xHeaders: this.getXHeaders(),
+      endpoint: constructor.skipRequestLogging
+        ? `${constructor.method} ${constructor.path}`
+        : `${this.req.method} ${this.req.path}`,
+      ...(constructor.skipRequestLogging ? {} : { data: this.data, xHeaders: this.getXHeaders() }),
     });
-    const constructor = this.constructor;
     let error: any = undefined;
     try {
       await this.authorize();

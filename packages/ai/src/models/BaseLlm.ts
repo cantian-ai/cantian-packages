@@ -1,6 +1,7 @@
 import { Semaphore } from 'async-mutex';
 import { randomUUID } from 'node:crypto';
 import { saveAgentUsage } from '../tokenUsage.js';
+import type { ModelMonitor, ModelMonitorContext } from '../monitor/types.js';
 import {
   AgentChunk,
   AgenticToolToken,
@@ -23,6 +24,8 @@ export type Options = {
   finalRound?: boolean;
   logMeta?: any; // Enable trace if truthy
   extRequestParams?: any;
+  monitor?: ModelMonitor | false;
+  monitorContext?: Partial<ModelMonitorContext>;
 };
 
 type AgenticStreamOptions = {
@@ -48,7 +51,20 @@ export class BaseLlm<T extends Options = Options> {
   }
 
   protected withDefaultModelOptions(options?: Partial<T>) {
-    return this.mergeOptions(this.defaultModelOptions, options) as T;
+    if (!this.defaultModelOptions && !options) return undefined as unknown as T;
+    // Monitor objects contain callbacks/state and must never be recursively merged.
+    const { monitor: defaultMonitor, monitorContext: defaultContext, ...defaults } = this.defaultModelOptions ?? {};
+    const { monitor, monitorContext, ...overrides } = options ?? {};
+    const selectedMonitor = monitor === undefined ? defaultMonitor : monitor;
+    const context = defaultContext || monitorContext ? {
+      scenario: monitorContext?.scenario ?? defaultContext?.scenario,
+      traceId: monitorContext?.traceId ?? defaultContext?.traceId,
+    } : undefined;
+    return {
+      ...this.mergeOptions(defaults, overrides),
+      ...(selectedMonitor === undefined ? {} : { monitor: selectedMonitor }),
+      ...(context ? { monitorContext: context } : {}),
+    } as T;
   }
 
   async *stream(messages: InputItem[], options?: T): AsyncGenerator<ModelChunk> {

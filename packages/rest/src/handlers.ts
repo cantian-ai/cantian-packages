@@ -1,6 +1,6 @@
 import { createTraceHandler } from 'cantian-als';
 import cors from 'cors';
-import express, { json, Request, Response } from 'express';
+import express, { json, Request, Response, ErrorRequestHandler } from 'express';
 import { existsSync, globSync } from 'node:fs';
 import { BaseController } from './BaseController.js';
 import { RestError } from './RestError.js';
@@ -64,15 +64,22 @@ export const createControllerRouter = async (options: { controllerDir: string; j
     }
     console.log(`Route: ${method.toUpperCase()} ${urlPath}`);
   }
-  router.use((err, req, res, next) => {
-    if (err instanceof SyntaxError && !res.headersSent) {
-      res.status(400).json({
-        error: 'Invalid JSON',
-      });
-    } else {
-      console.error(err);
+  const handleParserError: ErrorRequestHandler = (err, req, res, next) => {
+    if (res.headersSent) {
+      next(err);
+      return;
     }
-  });
+    if (err.type === 'entity.parse.failed') {
+      res.status(400).json({ error: 'Invalid JSON' });
+      return;
+    }
+    if (err.type === 'entity.too.large') {
+      res.status(413).json({ error: 'Payload too large' });
+      return;
+    }
+    next(err);
+  };
+  router.use(handleParserError);
   return router;
 };
 

@@ -170,3 +170,177 @@ for await (const chunk of llm.agenticStream(
 
 - 流程开始就有稳定 ID 可关联业务记录
 - 最终 `AGENT_USAGE.tokenUsageId` 会返回同一个 ID
+
+## Optional failure monitor (`cantian-ai/monitor`)
+
+This entry point provides observation and bounded delivery primitives. Importing it does not
+load the root AI entry point, models, token usage, databases, credentials or internal URLs.
+It installs no global hooks, signal handlers, intervals or network clients. Constructing a
+monitor/queue also does not start an idle timer. CompletionLlm now supports explicit opt-in
+integration as described below; other model protocol coverage remains separate work.
+
+```ts
+import { createModelMonitor, createMonitorDeliveryQueue } from 'cantian-ai/monitor';
+
+const queue = createMonitorDeliveryQueue({
+  // Supply the application's HTTP adapter. It must honor this independent signal,
+  // bound response reads and never log its credentials, body or raw exceptions.
+  async send(event, { signal }) {
+    const response = await sendToMonitorReceiver(event, signal);
+    // Unwrap the receiver's HTTP JSON envelope into {status, data, retryAfterMs}.
+    return response;
+  },
+  onDiagnostic(diagnostic) {
+    applicationLogger(diagnostic); // Only stable codes, counts and opaque event IDs.
+  },
+});
+
+const monitor = createModelMonitor({
+  service: 'service-demo',
+  environment: 'test',
+  release: 'revision-demo',
+  scenarios: ['demo.respond'],
+  targets: [{
+    provider: 'provider-demo',
+    endpoint: 'https://example.invalid/v1/completions',
+    models: ['model-demo'],
+  }],
+  report(event) { queue.enqueue(event); },
+});
+
+// At the final request-building boundary, pass metadata only. Do not pass a body,
+// headers object, prompt, output, or whole business context to this monitor.
+const call = monitor.startCall({
+  endpoint: 'https://example.invalid/v1/completions',
+  model: 'model-demo',
+  context: { scenario: 'demo.respond', traceId: 'trace-demo' },
+  timeoutMs: 45000,
+  observationLayer: 'transport',
+});
+call.response({ httpStatus: 503, providerRequestId: 'request-demo' });
+call.fail(undefined, { phase: 'response', httpStatus: 503 });
+// The caller owns shutdown; nothing installs process-wide signal handlers.
+await queue.close();
+```
+
+`response()` and `content()` only mark that headers/content have been received.
+`fail()` reports at most once; `succeed()` and deliberate `cancel()` terminate without
+reporting. Distinguish caller cancellation from a timeout at the integration boundary;
+a raw `AbortError` is not silently discarded. All instances and contexts are independent.
+`report` must enqueue synchronously rather than wait on network/database work. Its sync
+throws and async rejections are isolated; model observations never await delivery.
+
+Targets and scenarios are trusted, fixed deployment configuration. Endpoints are matched
+by origin + exact fixed path; userinfo, query and fragment are never emitted. Dynamic paths
+must be resolved to a configured fixed route at the adapter boundary. Unmatched endpoints,
+models and scenarios become `unknown`. Do not place content, credentials or user identifiers
+in configuration values or opaque request/trace IDs. Malformed identifiers are omitted or
+rejected rather than copied/truncated. Provider errors use local templates and a small
+allowlist of network codes, never raw message/stack/cause. Optional providerCode/providerMessage
+retain bounded supplier diagnostics after conservative sanitization; arbitrary provider bodies
+and unverified free text are omitted.
+
+Event snapshots are rebuilt from known scalar fields, frozen and capped at 8 KiB UTF-8 JSON.
+No arbitrary `toJSON`, additional nested fields or original error objects are serialized.
+Diagnostic callbacks receive only safe metadata; repeated diagnostic codes are coalesced
+within one second. No default logger writes to the console.
+
+Delivery defaults: **100 events / 1 MiB including in-flight events / concurrency 2**.
+A send has its own 3-second AbortSignal deadline. Total attempts are capped at 3 (initial
+send + 2 retries), delayed about 1 and 5 seconds with jitter. Network exceptions, 408, 429
+and 5xx are retryable. Other statuses and malformed success acknowledgments are terminal.
+All retries reuse `eventId`. A 2xx acknowledgment must match `eventId`, contain an opaque
+`alertId`, and use `aggregated`, `duplicate` or `muted`. The adapter must unwrap `data` from
+the receiver JSON envelope; `parseMonitorRetryAfter` handles either Retry-After format.
+A 429 Retry-After is honored within the configured retry-delay budget (default 6 seconds);
+if longer, the event is dropped with a failure diagnostic instead of retrying prematurely.
+
+Queue parameters are finite and validated; maxAttempts cannot exceed 3. Retry delays are a
+pair of milliseconds. `enqueue()` returns false on overflow, invalid input or closure.
+The queue has no cross-process durability and does not deduplicate received events.
+If a send callback ignores cancellation, its in-flight slot and event budget stay occupied
+until it actually settles, so ignored deadlines cannot produce unlimited requests.
+`flush(timeoutMs)` waits at most 3 seconds and returns whether drained. `close(timeoutMs)`
+stops admission, flushes for that same bounded budget, then aborts outstanding sends and
+drops queued events. Closing is idempotent; the caller must still ensure its adapter honors
+AbortSignal. Work may be lost on process termination. Queue retry scheduling does not keep
+an otherwise idle process alive; an explicit bounded flush/close does.
+
+### Test-environment verification
+
+The suite uses injected send functions and synthetic data, with no paid model or real mail
+calls. Per the rollout plan, run it **in the deployed test environment**, after building the
+package, with Node.js 22.15+ (the import-isolation test uses `module.registerHooks`):
+
+```sh
+MODEL_MONITOR_TEST_ENV=test npm run test:monitor --workspace=cantian-ai
+```
+
+Tests live in `packages/ai/tests/monitor.test.mjs` and are not included in the public npm
+payload. Include the source test file with the test-environment validation job/artifact;
+installing the npm tarball alone does not install the suite. Building/type checking and
+`npm pack --dry-run` are static checks, not evidence the test-environment suite passed.
+
+## CompletionLlm opt-in monitoring
+
+`CompletionLlm.stream()` and `invoke()` now accept `monitor` and `monitorContext` in their
+existing options object. They are also supported as instance defaults. No monitor means
+no failure events, queue or extra network request; importing the AI root does not enable it.
+A per-call monitor replaces the instance monitor **by reference**, and `monitor: false`
+disables the current call. Context merges instance defaults with per-call known fields
+(`scenario`, `traceId`) into a new snapshot, never a shared mutable object.
+
+```ts
+import { CompletionLlm } from 'cantian-ai';
+// `monitor` is explicitly created/configured with the monitor subpath shown above.
+const llm = new CompletionLlm(endpoint, apiKey, modelName, {
+  monitor,
+  monitorContext: { scenario: 'demo.respond' },
+});
+await llm.invoke(input, { monitorContext: { traceId: 'trace-demo' } });
+await llm.invoke(input, { monitor: false });
+```
+
+The integration reuses the already parsed final request for the actual `model`, after
+`extRequestParams` overrides. It never puts local monitor/context objects into the provider
+body or existing usage metadata. `invoke` consumes `stream` and records only one failure
+at that boundary, not one per wrapper or recovered transport attempt. Observation layer is
+`sdk`; transport attempt numbers remain available to the optional request-layer observer.
+
+HTTP/network/read/parser failures, 200 responses with provider error payloads, and SSE
+`event: error` are observed. Chat Completions terminates with `[DONE]` **or** a nonempty
+`finish_reason`; neither missing usage nor `length` is itself an error. A clean EOF with
+neither termination signal is reported as protocol/read failure, without adding a new
+business throw. Protocol errors that were previously ignored remain ignored by the business
+loop; existing JSON parse exceptions and request errors still propagate. Raw provider error
+messages are not copied into monitoring events. Original `MODEL_CALLING`/`USAGE` chunks and
+usage persistence retain their business data and behavior; do not repurpose those as safe
+monitoring snapshots.
+
+Caller abort/consumer return is quiet, while actual timeout reasons are reported. Observer
+failures cannot replace model errors or outputs. Observation ends before usage persistence,
+so usage-storage failures or downstream output JSON/schema validation do not become provider
+faults. This change does **not** implement ResponseLlm or complete Agent multi-round
+monitoring coverage; those remain the later B01 task.
+
+`npm run test:monitor --workspace=cantian-ai` now includes both monitor primitives and
+CompletionLlm integration tests, gated by `MODEL_MONITOR_TEST_ENV=test`. Integration tests
+exercise the real model/request/monitor code using injected fetch/stream responses and a
+usage-persistence stub; no database, model provider or mail service is contacted. Run these
+in the deployed test environment; they were not executed locally during implementation.
+
+### Provider diagnostic fields
+
+Starting with this source revision, `error.providerCode` (up to 64 ASCII bytes) and
+`error.providerMessage` (up to 512 UTF-8 bytes) are optional. HTTP `error.code` / `safeMessage`
+retain their controlled semantics. CompletionLlm forwards sanitized HTTP/SSE error fields;
+snapshots and delivery repeat sanitization, preventing callbacks from bypassing the boundary.
+No original Error.message or successful response body is used as a diagnostic source.
+
+The monitor uses only the pure `cantian-request/provider-error` subpath for the shared
+sanitizer. It still imports no request root, fetch wrapper, MongoDB, model or MCP module.
+Descriptions must match a reviewed diagnostic sentence after redaction; unknown/unsafe
+free text is omitted. This permits useful supplier codes such as `invalid_model` without
+forwarding a body or prompt echo. The receiving service must also validate/sanitize the
+optional fields before storing or rendering them. Deploy a compatible receiver before the
+new sender; old events remain valid when both fields are absent.
