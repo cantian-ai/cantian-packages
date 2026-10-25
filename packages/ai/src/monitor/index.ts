@@ -7,3 +7,5 @@ export type {
   ModelMonitor, ModelMonitorOptions, ModelMonitorDiagnostic, ModelMonitorDiagnosticHandler,
   MonitorDeliveryResult, MonitorDeliveryOptions, MonitorDeliveryQueue,
 } from './types.js';
+export { createHttpModelMonitor } from './http.js';
+export { startModelCall } from './call.js';

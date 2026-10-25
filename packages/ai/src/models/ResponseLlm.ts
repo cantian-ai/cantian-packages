@@ -1,4 +1,7 @@
 import { sse } from 'cantian-request';
+import type { RequestObserver } from 'cantian-request';
+import { extractProviderError } from 'cantian-request/provider-error';
+import { startModelCall } from '../monitor/call.js';
 import { JSONSchema } from 'json-schema-to-ts';
 import { saveModelUsage } from '../tokenUsage.js';
 import { InputItem, MessageChunk, ModelCallingChunk, ModelChunk, TokenChunk, ToolCallChunk, UsageChunk } from '../type.js';
@@ -20,14 +23,34 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
   async *stream(messages: InputItem[], options?: DeepseekModelOptions): AsyncGenerator<ModelChunk> {
     options = this.withDefaultModelOptions(options);
     const [, release] = await this.semaphore.acquire();
+    let call: ReturnType<typeof startModelCall> | undefined;
+    let transportFailed = false;
+    let sawCompletion = false;
     try {
       const [url, init] = this.buildResponseRequestParams(messages, options);
       const startedAt = Date.now();
-      const response = sse(url, init, { idleTimeoutMs: options?.idleTimeoutMs ?? 45000 });
+      const requestBody = JSON.parse(init.body as string);
+      call = startModelCall(options?.monitor, {
+        endpoint: url, model: typeof requestBody.model === 'string' ? requestBody.model : 'unknown', method: 'POST',
+        context: { scenario: options?.monitorContext?.scenario ?? 'unknown', traceId: options?.monitorContext?.traceId },
+        timeoutMs: options?.idleTimeoutMs ?? 45000, observationLayer: 'sdk',
+      });
+      const observer: RequestObserver = (event) => {
+        if (event.type === 'response') call?.response({ httpStatus: event.status, providerRequestId: event.requestId });
+        else if (event.type === 'content') call?.content();
+        else if (event.type === 'error') {
+          transportFailed = true;
+          if (event.category === 'cancelled') call?.cancel();
+          else call?.fail({ code: event.code }, { category: event.category, phase: event.phase,
+            httpStatus: event.status, providerRequestId: event.requestId,
+            providerCode: event.providerCode, providerMessage: event.providerMessage });
+        }
+      };
+      const response = sse(url, init, { idleTimeoutMs: options?.idleTimeoutMs ?? 45000, observer });
       let usageContent: Partial<UsageChunk> = {
         type: 'USAGE',
         model: this.model,
-        input: JSON.parse(init.body as string),
+        input: requestBody,
       };
       yield { type: 'MODEL_CALLING', url, init } satisfies ModelCallingChunk;
       for await (const chunk of response) {
@@ -36,7 +59,15 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
             break;
           }
 
-          const data = JSON.parse(chunk.data);
+          let data: any;
+          try { data = JSON.parse(chunk.data); }
+          catch (error) { call.fail(error, { category: 'protocol', phase: 'parse' }); throw error; }
+          if (chunk.event === 'error' || chunk.event === 'response.failed' || chunk.event === 'response.incomplete' || data?.error) {
+            const requestId = data?.request_id ?? data?.response?.request_id;
+            if (typeof requestId === 'string') call.response({ providerRequestId: requestId });
+            call.fail(undefined, { category: 'protocol', phase: 'parse',
+              ...(Buffer.byteLength(chunk.data) <= 8192 ? extractProviderError(data?.response?.error ? data.response : data) : {}) });
+          }
           switch (chunk.event) {
             case 'response.output_text.delta':
               if (usageContent.firstTokenCostMs === undefined) {
@@ -64,6 +95,7 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
               }
               break;
             case 'response.completed':
+              sawCompletion = true;
               const usage = data.response.usage;
               usageContent.totalTokens = usage.total_tokens;
               usageContent.inputUsage = {
@@ -81,13 +113,21 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
           }
         }
       }
+      if (options?.signal?.aborted) call.cancel();
+      else if (!sawCompletion) call.fail(undefined, { category: 'protocol', phase: 'read' });
+      else call.succeed();
       usageContent.totalCostMs = Date.now() - startedAt;
       usageContent.estimatedCost = (COST_DOLLAR_PER_M * (usageContent.totalTokens || 0)) / 1000000;
       if (options?.logMeta) {
         saveModelUsage(usageContent as UsageChunk, options.logMeta, url);
       }
       yield usageContent as UsageChunk;
+    } catch (error) {
+      if (options?.signal?.aborted && !transportFailed) call?.cancel();
+      else call?.fail(error, { category: 'client', phase: 'parse' });
+      throw error;
     } finally {
+      call?.cancel();
       release();
     }
   }

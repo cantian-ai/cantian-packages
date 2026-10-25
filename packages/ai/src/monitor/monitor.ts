@@ -20,7 +20,8 @@ export function createModelMonitor(options: ModelMonitorOptions): ModelMonitor {
       const callId = randomUUID();
       const startedAt = performance.now();
       const endpoint = normalizeEndpoint(input.endpoint);
-      const target = targets.find((item) => item.endpoint === endpoint);
+      const target = targets.find((item) => item.endpoint === endpoint && item.models.has(input.model)) ??
+        targets.find((item) => item.endpoint === endpoint);
       const metadata = {
         service, environment, ...(release ? { release } : {}),
         scenario: scenarios.has(input.context.scenario) ? input.context.scenario : 'unknown',

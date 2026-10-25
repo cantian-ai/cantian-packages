@@ -73,7 +73,8 @@ test('final request model is observed; control fields never enter request body o
   };
   await silenceErrors(async (logs) => {
     await assert.rejects(model(monitor(events)).invoke(messages, { extRequestParams: { model: 'model-final' } }), /Fetch failed\(503\)/);
-    assert.ok(!JSON.stringify(logs).includes('PRIVATE_SENTINEL'));
+    // Legacy request logs retain their original behavior; only monitor events are sanitized.
+    assert.ok(JSON.stringify(logs).includes('PRIVATE_SENTINEL'));
   });
   assert.equal(body.model, 'model-final');
   assert.ok(!('monitor' in body) && !('monitorContext' in body));

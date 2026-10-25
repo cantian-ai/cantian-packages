@@ -281,9 +281,9 @@ payload. Include the source test file with the test-environment validation job/a
 installing the npm tarball alone does not install the suite. Building/type checking and
 `npm pack --dry-run` are static checks, not evidence the test-environment suite passed.
 
-## CompletionLlm opt-in monitoring
+## CompletionLlm / ResponseLlm opt-in monitoring
 
-`CompletionLlm.stream()` and `invoke()` now accept `monitor` and `monitorContext` in their
+`CompletionLlm` and `ResponseLlm` `stream()` / `invoke()` accept `monitor` and `monitorContext` in their
 existing options object. They are also supported as instance defaults. No monitor means
 no failure events, queue or extra network request; importing the AI root does not enable it.
 A per-call monitor replaces the instance monitor **by reference**, and `monitor: false`
@@ -320,8 +320,11 @@ monitoring snapshots.
 Caller abort/consumer return is quiet, while actual timeout reasons are reported. Observer
 failures cannot replace model errors or outputs. Observation ends before usage persistence,
 so usage-storage failures or downstream output JSON/schema validation do not become provider
-faults. This change does **not** implement ResponseLlm or complete Agent multi-round
-monitoring coverage; those remain the later B01 task.
+faults. ResponseLlm additionally observes `response.failed`, `response.incomplete`, `error`
+and premature EOF without `response.completed`. Agentic streams forward the per-call monitor
+and context into each model round (separate callId); tool-handler failures happen outside
+the model observation and do not become model failures. Runtime verification of these new
+paths is pending the deployed test-environment suite.
 
 `npm run test:monitor --workspace=cantian-ai` now includes both monitor primitives and
 CompletionLlm integration tests, gated by `MODEL_MONITOR_TEST_ENV=test`. Integration tests
@@ -344,3 +347,18 @@ free text is omitted. This permits useful supplier codes such as `invalid_model`
 forwarding a body or prompt echo. The receiving service must also validate/sanitize the
 optional fields before storing or rendering them. Deploy a compatible receiver before the
 new sender; old events remain valid when both fields are absent.
+
+### Shared HTTPS adapter (0.0.77 candidate)
+
+`createHttpModelMonitor({ service, environment, scenarios, targets, reportUrl, apiKey, release })`
+from `cantian-ai/monitor` reuses the same bounded delivery queue. It returns `{ monitor, flush, close }`;
+create it once from the service's online init, pass its monitor and a fixed scenario into calls,
+and close it on shutdown. It sends with native fetch, HTTPS only, redirects disabled, and an
+8 KiB acknowledgement limit; the internal bearer token is never included in event data or
+diagnostics. This helper does nothing until explicitly constructed. The configured receiver
+URL and credentials are supplied by the consuming service, never bundled in the SDK.
+
+For custom transports, `startModelCall(monitor, metadata)` isolates observer exceptions and
+accepts response/content/fail/succeed/cancel updates, with at most one final outcome. Supply
+only known metadata to it; never hand it a request init, prompt, response body or raw diagnostic
+message. Provider diagnostics must pass the existing provider-error sanitizer first.
