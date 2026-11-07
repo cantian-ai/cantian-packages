@@ -20,7 +20,7 @@ async function captureLogs(action) {
   finally { console.warn = warn; console.error = error; }
 }
 
-test('network retry count, predicate and original error identity and legacy logs stay unchanged', async () => {
+test('network retry count, predicate and original error identity stay unchanged while logs omit secrets', async () => {
   const failure = new Error('PRIVATE_SENTINEL', { cause: { code: 'ECONNRESET' } });
   let attempts = 0;
   const observations = [];
@@ -33,7 +33,7 @@ test('network retry count, predicate and original error identity and legacy logs
     assert.deepEqual(observations.filter((e) => e.type === 'attempt').map((e) => e.attempt), [1, 2]);
     assert.equal(observations.filter((e) => e.type === 'error').length, 1);
     assert.ok(!JSON.stringify(observations).includes('PRIVATE_SENTINEL'));
-    assert.ok(JSON.stringify(logs).includes('PRIVATE_SENTINEL'));
+    assert.ok(!JSON.stringify(logs).includes('PRIVATE_SENTINEL'));
   });
   attempts = 0;
   const noRetry = createRetryFetch(async () => { attempts++; throw failure; }, () => false);
@@ -51,7 +51,7 @@ test('observer sync/async exceptions do not replace a successful response or con
   await wait(1);
 });
 
-test('HTTP error keeps legacy message and exposes only safe structured properties to observation while retaining legacy logs', async () => {
+test('HTTP error keeps legacy message and exposes only safe structured properties to observation while logs omit secrets', async () => {
   const observations = [];
   const request = createThrowHttpErrorFetch(async () => new Response('PRIVATE_SENTINEL', {
     status: 503, headers: { 'x-request-id': 'request-demo', 'Retry-After': '2', 'Set-Cookie': 'PRIVATE_SENTINEL' },
@@ -67,7 +67,7 @@ test('HTTP error keeps legacy message and exposes only safe structured propertie
     });
     assert.equal(observations.find((e) => e.type === 'error').category, 'http');
     assert.ok(!JSON.stringify(observations).includes('PRIVATE_SENTINEL'));
-    assert.ok(JSON.stringify(logs).includes('PRIVATE_SENTINEL'));
+    assert.ok(!JSON.stringify(logs).includes('PRIVATE_SENTINEL'));
   });
 });
 
@@ -201,7 +201,9 @@ test('request-id fallback uses only bounded error JSON metadata, never the error
         return true;
       });
       assert.ok(!JSON.stringify(observations).includes('PRIVATE_SENTINEL'));
-      assert.equal(logs.find((entry) => entry[0] === 'FETCH_ERROR_HTTP_NOT_OK')[1].text, body);
+      assert.equal(logs.find((entry) => entry[0] === 'FETCH_ERROR_HTTP_NOT_OK')[1].requestId, large ? undefined : 'request-body');
+      assert.ok(!JSON.stringify(logs).includes('PRIVATE_SENTINEL'));
+      assert.ok(!('text' in logs[0][1]));
     });
     assert.equal(observations.at(-1).requestId, large ? undefined : 'request-body');
   }
@@ -273,4 +275,51 @@ test('error-body extraction budget omits diagnostics from large responses withou
     const request = createThrowHttpErrorFetch(async () => new Response(body, { status: 401 }));
     await assert.rejects(request(url), (error) => error.providerCode === undefined && error.message === `Fetch failed(401): ${body}`);
   });
+});
+
+
+test('HTTP logs omit credentials for object, tuple, Headers and Request inputs without changing requests', async () => {
+  for (const headers of [
+    { authorization: 'Bearer PRIVATE_SENTINEL', 'X-API-Key': 'PRIVATE_SENTINEL', Cookie: 'PRIVATE_SENTINEL' },
+    [['Authorization', 'Bearer PRIVATE_SENTINEL'], ['api-key', 'PRIVATE_SENTINEL']],
+    new Headers({ AUTHORIZATION: 'Bearer PRIVATE_SENTINEL', 'x-api-key': 'PRIVATE_SENTINEL' }),
+  ]) {
+    for (const useRequest of [false, true]) {
+      const input = useRequest ? new Request(url, { method: 'POST', headers, body: 'PRIVATE_SENTINEL' }) : url;
+      const init = useRequest ? undefined : { method: 'POST', headers, body: 'PRIVATE_SENTINEL' };
+      const request = createThrowHttpErrorFetch(async (actualInput, actualInit) => {
+        assert.equal(actualInput, input);
+        assert.equal(actualInit, init);
+        const receivedHeaders = new Headers(actualInit?.headers ?? actualInput.headers);
+        assert.equal(receivedHeaders.get('authorization'), 'Bearer PRIVATE_SENTINEL');
+        return new Response('PRIVATE_SENTINEL', { status: 500, headers: { 'x-request-id': 'request-demo' } });
+      });
+      await captureLogs(async (logs) => {
+        await assert.rejects(request(input, init), /Fetch failed\(500\)/);
+        assert.ok(!JSON.stringify(logs).includes('PRIVATE_SENTINEL'));
+        assert.deepEqual(logs[0], ['FETCH_ERROR_HTTP_NOT_OK', {
+          url: 'https://example.invalid/v1/completions', method: 'POST', status: 500, requestId: 'request-demo',
+        }]);
+      });
+    }
+  }
+});
+
+test('invalid JSON API logs omit authentication and body while preserving the error', async () => {
+  const { api } = await import('../dist/index.js');
+  handleFetch = async (_url, init) => {
+    assert.equal(new Headers(init.headers).get('authorization'), 'Bearer PRIVATE_SENTINEL');
+    return new Response('PRIVATE_SENTINEL');
+  };
+  const entries = [];
+  const log = console.log;
+  console.log = (...args) => entries.push(args);
+  try {
+    await assert.rejects(api({ basepath: 'https://example.invalid', path: '/demo?api_key=PRIVATE_SENTINEL',
+      key: 'PRIVATE_SENTINEL', method: 'POST', data: { secret: 'PRIVATE_SENTINEL' },
+    }), /API returns a non-JSON string/);
+    assert.deepEqual(entries, [['FETCH_ERROR_API_INVALID_JSON', {
+      url: 'https://example.invalid/demo', method: 'POST', status: 200,
+    }]]);
+  } finally { console.log = log; }
 });

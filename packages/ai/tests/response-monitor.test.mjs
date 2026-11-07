@@ -71,3 +71,19 @@ test('agentic Responses forwards fixed context per round with separate callIds; 
  assert.equal(starts.length,2);assert.notEqual(starts[0].callId,starts[1].callId);assert.deepEqual(starts[0].context,starts[1].context);
  assert.equal(events.length,1);assert.equal(events[0].callId,starts[1].callId);assert.ok(!JSON.stringify(events).includes('PRIVATE_'));
 });
+
+
+test('Responses completed without usage preserves output and yields zero counts', async () => {
+ const {model,options}=setup();
+ handleFetch=async()=>sse(frame('response.output_text.delta',{delta:'hello'})+
+   frame('response.completed',{response:{output:[]}}));
+ const chunks=[];
+ for await(const chunk of model.agenticStream(input,options)) chunks.push(chunk);
+ assert.equal(chunks.filter(chunk=>chunk.type==='TOKEN').map(chunk=>chunk.delta).join(''),'hello');
+ const aggregate=chunks.at(-1);
+ assert.equal(aggregate.type,'AGENT_USAGE');
+ assert.equal(aggregate.totalTokens,0);
+ assert.deepEqual(aggregate.inputUsage,{inputTokens:0,cachedTokens:0});
+ assert.deepEqual(aggregate.outputUsage,{outputTokens:0,reasoningTokens:0});
+ assert.equal(aggregate.estimatedCost,0);
+});

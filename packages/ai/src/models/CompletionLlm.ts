@@ -90,6 +90,9 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
         type: 'USAGE',
         model: this.model,
         input: requestBody,
+        totalTokens: 0,
+        inputUsage: { inputTokens: 0, cachedTokens: 0 },
+        outputUsage: { outputTokens: 0, reasoningTokens: 0 },
       };
 
       const toolCallMap = new Map<number, ToolCallAcc>();
@@ -130,7 +133,7 @@ export class CompletionLlm extends BaseLlm<CompletionModelOptions> {
             cachedTokens: data.usage.prompt_tokens_details?.cached_tokens || 0,
           };
           usageContent.outputUsage = {
-            outputTokens: data.usage.completion_tokens,
+            outputTokens: data.usage.completion_tokens ?? 0,
             reasoningTokens: data.usage.completion_tokens_details?.reasoning_tokens || 0,
           };
         }

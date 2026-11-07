@@ -140,12 +140,12 @@ export class BaseLlm<T extends Options = Options> {
             break;
           case 'USAGE':
             agentUsage.totalTokens += chunk.totalTokens || 0;
-            agentUsage.inputUsage.inputTokens += chunk.inputUsage.inputTokens || 0;
-            agentUsage.inputUsage.cachedTokens += chunk.inputUsage.cachedTokens || 0;
-            agentUsage.outputUsage.outputTokens += chunk.outputUsage.outputTokens || 0;
-            agentUsage.outputUsage.reasoningTokens += chunk.outputUsage.reasoningTokens || 0;
+            agentUsage.inputUsage.inputTokens += chunk.inputUsage?.inputTokens ?? 0;
+            agentUsage.inputUsage.cachedTokens += chunk.inputUsage?.cachedTokens ?? 0;
+            agentUsage.outputUsage.outputTokens += chunk.outputUsage?.outputTokens ?? 0;
+            agentUsage.outputUsage.reasoningTokens += chunk.outputUsage?.reasoningTokens ?? 0;
             agentUsage.firstTokenCostMs = agentUsage.firstTokenCostMs || chunk.firstTokenCostMs;
-            agentUsage.estimatedCost += chunk.estimatedCost;
+            agentUsage.estimatedCost += chunk.estimatedCost ?? 0;
             agentUsage.rounds.push({ input: chunk.input, output: chunk.output });
             yield chunk;
             break;

@@ -1,3 +1,4 @@
+import { requestLogMetadata } from './requestLog.js';
 import { getTraceId } from 'cantian-als';
 import { limitFunction } from 'p-limit';
 import { createRetryFetch, createThrowHttpErrorFetch, createWithTimeoutFetch } from './basic.js';
@@ -51,7 +52,7 @@ export const api = limitFunction(
       try {
         result = JSON.parse(text);
       } catch (error) {
-        console.log(`FETCH_ERROR_API_INVALID_JSON`, { url, init, text });
+        console.log(`FETCH_ERROR_API_INVALID_JSON`, { ...requestLogMetadata(url, init), status: response.status });
         throw new Error(`API returns a non-JSON string: ${text}`);
       }
       if (result.code !== 1) {

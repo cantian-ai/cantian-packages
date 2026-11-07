@@ -1,3 +1,4 @@
+import { requestLogMetadata } from './requestLog.js';
 import { extractProviderError } from './providerError.js';
 import { observeRequest, requestFailure, responseMetadata } from './observation.js';
 import type { RequestObserver } from './observation.js';
@@ -29,11 +30,11 @@ export const createRetryFetch = (
           throw error;
         }
         lastError = error;
-        console.warn(`FETCH_ERROR_${i + 1}_TIMES`, { input, init, startedAt, now: new Date().toISOString() }, error);
+        console.warn(`FETCH_ERROR_${i + 1}_TIMES`, { ...requestLogMetadata(input, init), startedAt, now: new Date().toISOString(), failure });
       }
     }
     const failure = requestFailure(lastError, { phase: 'connect', signal: init?.signal ?? undefined });
-    console.error('FETCH_ERROR_LAST_TIME', { input, init }, lastError);
+    console.error('FETCH_ERROR_LAST_TIME', { ...requestLogMetadata(input, init), failure });
     observeRequest(observer, failure);
     throw lastError;
   };
@@ -95,7 +96,7 @@ export const createThrowHttpErrorFetch = (originalFetch: typeof fetch = createRe
         throw error;
       }
       const error = new HttpRequestError(response, text);
-      console.error('FETCH_ERROR_HTTP_NOT_OK', { input, init, text });
+      console.error('FETCH_ERROR_HTTP_NOT_OK', { ...requestLogMetadata(input, init), ...responseMetadata(response, text) });
       observeRequest(observer, requestFailure(error, { phase: 'response', ...metadata }));
       throw error;
     }

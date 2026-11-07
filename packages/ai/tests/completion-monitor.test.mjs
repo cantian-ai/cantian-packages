@@ -73,8 +73,8 @@ test('final request model is observed; control fields never enter request body o
   };
   await silenceErrors(async (logs) => {
     await assert.rejects(model(monitor(events)).invoke(messages, { extRequestParams: { model: 'model-final' } }), /Fetch failed\(503\)/);
-    // Legacy request logs retain their original behavior; only monitor events are sanitized.
-    assert.ok(JSON.stringify(logs).includes('PRIVATE_SENTINEL'));
+    // Request logs omit credentials and bodies; monitor events remain sanitized.
+    assert.ok(!JSON.stringify(logs).includes('PRIVATE_SENTINEL'));
   });
   assert.equal(body.model, 'model-final');
   assert.ok(!('monitor' in body) && !('monitorContext' in body));
@@ -286,4 +286,51 @@ test('HTTP and SSE provider diagnostics reach monitoring without response messag
     assert.equal(events[0].error.providerMessage, "Model '[REDACTED]' is invalid.");
     assert.ok(!JSON.stringify(events).includes('PRIVATE_SENTINEL'));
   }
+});
+
+
+test('agentic stream without provider usage preserves output and returns zero token counts', async () => {
+  handleFetch = async () => response(token('answer') + end() + 'data: [DONE]\n\n');
+  const chunks = [];
+  for await (const chunk of model().agenticStream(messages, {})) chunks.push(chunk);
+  assert.equal(chunks.filter((chunk) => chunk.type === 'TOKEN').map((chunk) => chunk.delta).join(''), 'answer');
+  const usage = chunks.find((chunk) => chunk.type === 'USAGE');
+  const aggregate = chunks.at(-1);
+  for (const item of [usage, aggregate]) {
+    assert.deepEqual(item.inputUsage, { inputTokens: 0, cachedTokens: 0 });
+    assert.deepEqual(item.outputUsage, { outputTokens: 0, reasoningTokens: 0 });
+    assert.equal(item.totalTokens, 0);
+    assert.equal(item.estimatedCost, 0);
+  }
+  assert.equal(aggregate.type, 'AGENT_USAGE');
+});
+
+test('agentic stream tolerates partial usage and retains available counts', async () => {
+  const llm = model();
+  llm.stream = async function* () {
+    yield { type: 'USAGE', totalTokens: 3, inputUsage: { inputTokens: 3 } };
+    yield { type: 'USAGE', totalTokens: 2, outputUsage: { outputTokens: 2 }, estimatedCost: 0.01 };
+    yield { type: 'USAGE' };
+  };
+  const chunks = [];
+  for await (const chunk of llm.agenticStream(messages, {})) chunks.push(chunk);
+  const aggregate = chunks.at(-1);
+  assert.deepEqual(aggregate.inputUsage, { inputTokens: 3, cachedTokens: 0 });
+  assert.deepEqual(aggregate.outputUsage, { outputTokens: 2, reasoningTokens: 0 });
+  assert.equal(aggregate.totalTokens, 5);
+  assert.equal(aggregate.estimatedCost, 0.01);
+});
+
+test('agentic stream preserves provider token usage', async () => {
+  handleFetch = async () => response(token() + end() + frame({ choices: [], usage: {
+    total_tokens: 18, prompt_tokens: 12, completion_tokens: 6,
+    prompt_tokens_details: { cached_tokens: 4 }, completion_tokens_details: { reasoning_tokens: 2 },
+  } }) + 'data: [DONE]\n\n');
+  const chunks = [];
+  for await (const chunk of model().agenticStream(messages, {})) chunks.push(chunk);
+  const aggregate = chunks.at(-1);
+  assert.deepEqual(aggregate.inputUsage, { inputTokens: 12, cachedTokens: 4 });
+  assert.deepEqual(aggregate.outputUsage, { outputTokens: 6, reasoningTokens: 2 });
+  assert.equal(aggregate.totalTokens, 18);
+  assert.ok(Number.isFinite(aggregate.estimatedCost));
 });

@@ -97,14 +97,14 @@ export class ResponseLlm extends BaseLlm<DeepseekModelOptions> {
             case 'response.completed':
               sawCompletion = true;
               const usage = data.response.usage;
-              usageContent.totalTokens = usage.total_tokens;
+              usageContent.totalTokens = usage?.total_tokens ?? 0;
               usageContent.inputUsage = {
-                inputTokens: usage.input_tokens,
-                cachedTokens: usage.input_tokens_details?.cached_tokens,
+                inputTokens: usage?.input_tokens ?? 0,
+                cachedTokens: usage?.input_tokens_details?.cached_tokens ?? 0,
               };
               usageContent.outputUsage = {
-                outputTokens: usage.output_tokens,
-                reasoningTokens: usage.output_tokens_details.reasoning_tokens,
+                outputTokens: usage?.output_tokens ?? 0,
+                reasoningTokens: usage?.output_tokens_details?.reasoning_tokens ?? 0,
               };
               usageContent.output = data.response.output;
               break;
